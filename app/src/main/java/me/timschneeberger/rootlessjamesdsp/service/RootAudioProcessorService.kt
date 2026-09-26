@@ -49,14 +49,36 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
 
     private val audioPlaybackCallback = object : AudioManager.AudioPlaybackCallback() {
         override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) {
-            app.rootSessionDatabase.sessionList.values.forEach { session ->
-                (session as? RemoteEffectSession)?.effect?.reloadConvolverIfSampleRateChanged()
+            fun refreshSessions() {
+                app.rootSessionDatabase.sessionList.values.forEach { session ->
+                    val effect = (session as? RemoteEffectSession)?.effect ?: return@forEach
+                    if (BuildConfig.ONEPLUS13)
+                        effect.refreshAfterRouteChange()
+                    else
+                        effect.reloadConvolverIfSampleRateChanged()
+                }
+            }
+
+            refreshSessions()
+
+            if (BuildConfig.ONEPLUS13) {
+                // ColorOS may emit playback callbacks before the final SM8750
+                // route/sample-rate settles. Debounce and verify twice more
+                // instead of trusting the first transient configuration.
+                routeResyncJob?.cancel()
+                routeResyncJob = MainScope().launch {
+                    delay(350)
+                    refreshSessions()
+                    delay(1000)
+                    refreshSessions()
+                }
             }
         }
     }
 
     // Termination flags
     private var isServiceDisposing = false
+    private var routeResyncJob: Job? = null
 
     // Enhanced processing
     private var sessionDumpManager: RootSessionDumpManager? = null

@@ -19,6 +19,9 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import me.timschneeberger.rootlessjamesdsp.R
 import me.timschneeberger.rootlessjamesdsp.databinding.FragmentDspBinding
 import me.timschneeberger.rootlessjamesdsp.utils.Constants
@@ -35,6 +38,7 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
     private lateinit var binding: FragmentDspBinding
     private var updateNoticeOnClick: (() -> Unit)? = null
     private var updateNoticeOnCloseClick: (() -> Unit)? = null
+    private var statusPollJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         prefsApp.registerOnSharedPreferenceChangeListener(this)
@@ -42,6 +46,8 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
     }
 
     override fun onDestroy() {
+        statusPollJob?.cancel()
+        statusPollJob = null
         prefsApp.unregisterOnSharedPreferenceChangeListener(this)
         super.onDestroy()
     }
@@ -68,7 +74,7 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
 
         binding.oneplus13Status.isVisible = BuildConfig.ONEPLUS13
         binding.oneplus13Status.setOnRootClickListener {
-            refreshOnePlus13Status(showDialog = true)
+            refreshOnePlus13Status(showDialog = true, deepProbe = true)
         }
 
         // Should show notice?
@@ -149,16 +155,49 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
     override fun onResume() {
         super.onResume()
         if (BuildConfig.ONEPLUS13) {
-            refreshOnePlus13Status(showDialog = false)
+            // One deep probe when the screen becomes visible, then cheap
+            // AudioEffect-only telemetry updates once per second.
+            refreshOnePlus13Status(showDialog = false, deepProbe = true)
+            startOnePlus13StatusPolling()
         }
     }
 
-    private fun refreshOnePlus13Status(showDialog: Boolean) {
+    override fun onPause() {
+        statusPollJob?.cancel()
+        statusPollJob = null
+        super.onPause()
+    }
+
+    private fun startOnePlus13StatusPolling() {
+        statusPollJob?.cancel()
+        statusPollJob = lifecycleScope.launch {
+            while (isActive) {
+                delay(1000)
+                val snapshot = withContext(Dispatchers.IO) {
+                    OnePlus13Diagnostics.collectQuick(routingObserver)
+                }
+                if (!isAdded || !this@DspFragment::binding.isInitialized) continue
+
+                binding.oneplus13Status.titleText =
+                    getString(R.string.oneplus13_audio_chain_header)
+                binding.oneplus13Status.bodyText = snapshot.headline
+                binding.oneplus13Status.isVisible = true
+            }
+        }
+    }
+
+    private fun refreshOnePlus13Status(
+        showDialog: Boolean,
+        deepProbe: Boolean,
+    ) {
         if (!BuildConfig.ONEPLUS13 || !this::binding.isInitialized) return
 
         lifecycleScope.launch {
             val snapshot = withContext(Dispatchers.IO) {
-                OnePlus13Diagnostics.collect(requireContext(), routingObserver)
+                if (deepProbe)
+                    OnePlus13Diagnostics.collect(requireContext(), routingObserver)
+                else
+                    OnePlus13Diagnostics.collectQuick(routingObserver)
             }
             if (!isAdded || !this@DspFragment::binding.isInitialized) return@launch
 

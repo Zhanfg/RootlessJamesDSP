@@ -368,6 +368,18 @@ class JamesDspRemoteEngine(
         get() = effect.getParameterInt(20014)
     val processedBlocks: Int?
         get() = effect.getParameterInt(20015)
+    val safetyGuardEnabled: Boolean?
+        get() = effect.getParameterInt(20016)?.let { it != 0 }
+    val safetyGainMilliDb: Int?
+        get() = effect.getParameterInt(20017)
+    val clipEvents: Int?
+        get() = effect.getParameterInt(20018)
+    val supportsSafetyGuard: Boolean
+        get() = safetyGuardEnabled != null && safetyGainMilliDb != null
+
+    fun setSafetyGuardEnabled(enable: Boolean): Boolean {
+        return effect.setParameter(1600, enable.toShort()) == AudioEffect.SUCCESS
+    }
     val supportsOnePlus13Telemetry: Boolean
         get() = peakMilliDb != null && processedBlocks != null
 

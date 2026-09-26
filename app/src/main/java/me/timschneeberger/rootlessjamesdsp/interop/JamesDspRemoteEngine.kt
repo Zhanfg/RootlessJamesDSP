@@ -78,7 +78,18 @@ class JamesDspRemoteEngine(
 
     private fun createEffect(): AudioEffectHidden {
         return try {
-            AudioEffectHidden(EFFECT_TYPE_CUSTOM, EFFECT_JAMESDSP, priority, sessionId)
+            // Prefer the registered descriptor's actual type UUID. Several
+            // JamesDSP forks keep the implementation UUID stable while using a
+            // different custom type; hard-coding our O13 type would needlessly
+            // reject an otherwise compatible driver.
+            val registeredType = runCatching {
+                AudioEffect.queryEffects()
+                    .orEmpty()
+                    .firstOrNull { it.uuid == EFFECT_JAMESDSP }
+                    ?.type
+            }.getOrNull() ?: EFFECT_TYPE_CUSTOM
+
+            AudioEffectHidden(registeredType, EFFECT_JAMESDSP, priority, sessionId)
         } catch (e: Exception) {
             Timber.e("Failed to create JamesDSP effect")
             Timber.e(e)

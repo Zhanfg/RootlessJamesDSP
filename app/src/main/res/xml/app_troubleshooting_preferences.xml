@@ -35,6 +35,12 @@
             app:defaultValue="@string/default_oneplus13_decoder_routing"
             app:useSimpleSummaryProvider="true"
             app:iconSpaceReserved="false" />
+        <me.timschneeberger.rootlessjamesdsp.preference.DropDownPreference
+            app:key="@string/key_oneplus13_decoder_source"
+            app:title="@string/oneplus13_decoder_source"
+            app:summary="@string/oneplus13_decoder_source_summary"
+            app:defaultValue="@string/default_oneplus13_decoder_source"
+            app:iconSpaceReserved="false" />
         <Preference
             android:key="@string/key_oneplus13_engine_resync"
             android:title="@string/oneplus13_engine_resync"

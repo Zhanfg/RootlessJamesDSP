@@ -750,7 +750,7 @@ Please press \'Continue\' below to re-do the setup wizard.</string>
     <string name="oneplus13_decoder_routing">Decoder routing</string>
     <string name="oneplus13_decoder_routing_auto">Auto / native offload</string>
     <string name="oneplus13_decoder_routing_dsp">Prefer DSP-compatible PCM</string>
-    <string name="oneplus13_decoder_routing_summary">Auto keeps the device's native decoder/offload policy. DSP-compatible mode temporarily disables compress offload while JamesDSP is processing so decoded PCM can return through AudioFlinger effects.</string>
+    <string name="oneplus13_decoder_routing_summary">Auto keeps the device’s native decoder/offload policy. DSP-compatible mode temporarily disables compress offload while JamesDSP is processing so decoded PCM can return through AudioFlinger effects.</string>
 
     <string name="key_oneplus13_decoder_source">oneplus13_decoder_source</string>
     <string name="oneplus13_decoder_source">Mounted decoder source</string>

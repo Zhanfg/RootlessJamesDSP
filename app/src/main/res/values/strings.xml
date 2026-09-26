@@ -716,4 +716,15 @@ Tap on \'Tutorial\' below for detailed instructions.</string>
     <string name="android_15_screenshare_keyguard_warning">Android 15 introduces a restriction that stops screen sharing when the device is locked. To workaround this issue, the \'PROJECT_MEDIA\' permission must be granted using Shizuku or ADB.
 
 Please press \'Continue\' below to re-do the setup wizard.</string>
+    <!-- OnePlus 13 / Android 16 -->
+    <string name="key_oneplus13_audio_chain_status">oneplus13_audio_chain_status</string>
+    <string name="key_oneplus13_engine_resync">oneplus13_engine_resync</string>
+    <string name="oneplus13_audio_chain_header">OnePlus 13 audio chain</string>
+    <string name="oneplus13_audio_chain_status">Live audio-chain status</string>
+    <string name="oneplus13_audio_chain_status_summary">Check the AIDL driver, active sessions, sample rate, current route, QTI audio services and OPlus/Dolby coexistence.</string>
+    <string name="oneplus13_audio_chain_dialog_title">OnePlus 13 audio-chain status</string>
+    <string name="oneplus13_engine_resync">Restart and resync JamesDSP</string>
+    <string name="oneplus13_engine_resync_summary">Recreate active JamesDSP effects and immediately re-apply the complete preset.</string>
+    <string name="oneplus13_engine_resync_done">JamesDSP restart/resync requested.</string>
+
 </resources>

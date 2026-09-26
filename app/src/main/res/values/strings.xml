@@ -733,4 +733,13 @@ Please press \'Continue\' below to re-do the setup wizard.</string>
     <string name="oneplus13_safety_guard_off">Disabled. The saved DSP chain is used without the O13 runtime safety layer.</string>
     <string name="oneplus13_safety_guard_compat">Available only when the active driver exposes the OnePlus 13 safety extension; compatible drivers continue to work normally.</string>
 
+    <string name="key_oneplus13_sessions">oneplus13_sessions</string>
+    <string name="key_oneplus13_capabilities">oneplus13_capabilities</string>
+    <string name="oneplus13_sessions">Active processing sessions</string>
+    <string name="oneplus13_sessions_summary">Show each app/session currently attached to JamesDSP and its live engine state.</string>
+    <string name="oneplus13_sessions_dialog_title">Active JamesDSP sessions</string>
+    <string name="oneplus13_capabilities">Driver capability matrix</string>
+    <string name="oneplus13_capabilities_summary">Show which standard and OnePlus 13 extensions are available with the current driver.</string>
+    <string name="oneplus13_capabilities_dialog_title">JamesDSP driver capabilities</string>
+
 </resources>

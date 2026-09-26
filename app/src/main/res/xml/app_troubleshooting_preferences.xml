@@ -22,6 +22,20 @@
             android:summary="@string/oneplus13_capabilities_summary"
             app:iconSpaceReserved="false" />
         <Preference
+            android:key="@string/key_oneplus13_decoder_status"
+            android:title="@string/oneplus13_decoder_status"
+            android:summary="@string/oneplus13_decoder_status_summary"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            app:key="@string/key_oneplus13_decoder_routing"
+            app:title="@string/oneplus13_decoder_routing"
+            app:summary="@string/oneplus13_decoder_routing_summary"
+            app:entries="@array/oneplus13_decoder_routing_modes"
+            app:entryValues="@array/oneplus13_decoder_routing_values"
+            app:defaultValue="@string/default_oneplus13_decoder_routing"
+            app:useSimpleSummaryProvider="true"
+            app:iconSpaceReserved="false" />
+        <Preference
             android:key="@string/key_oneplus13_engine_resync"
             android:title="@string/oneplus13_engine_resync"
             android:summary="@string/oneplus13_engine_resync_summary"

@@ -80,18 +80,22 @@ class JamesDspRemoteEngine(
         }
     }
 
-    private fun checkEngine() {
+    private fun checkEngine(): Boolean {
+        var rebooted = false
+
         if (!isPidValid) {
             Timber.e("PID ($pid) for session $sessionId invalid. Engine probably crashed or detached.")
             context.toast("Engine crashed. Rebooting JamesDSP.", false)
             rebootEngine()
-        }
-
-        if (isSampleRateAbnormal) {
+            rebooted = true
+        } else if (isSampleRateAbnormal) {
             Timber.e("PID ($pid) for session $sessionId invalid. Engine crashed.")
             context.toast("Abnormal sampling rate. Rebooting JamesDSP.", false)
             rebootEngine()
+            rebooted = true
         }
+
+        return rebooted
     }
 
     private fun rebootEngine() {
@@ -113,8 +117,8 @@ class JamesDspRemoteEngine(
             return
         }
 
-        checkEngine()
-        super.syncWithPreferences(forceUpdateNamespaces)
+        val namespaces = if (checkEngine()) ALL_PREF_NAMESPACES else forceUpdateNamespaces
+        super.syncWithPreferences(namespaces)
     }
 
     override fun close() {
@@ -315,6 +319,27 @@ class JamesDspRemoteEngine(
     companion object {
         private val EFFECT_TYPE_CUSTOM = UUID.fromString("f98765f4-c321-5de6-9a45-123459495ab2")
         private val EFFECT_JAMESDSP = UUID.fromString("f27317f4-c984-4de6-9a90-545759495bf2")
+
+        /**
+         * A recreated AudioEffect starts from native defaults. Re-push every namespace after
+         * an engine crash/rebind so the Java-side preference cache cannot leave the DSP partially
+         * reset while the UI still shows the previous preset.
+         */
+        private val ALL_PREF_NAMESPACES = arrayOf(
+            Constants.PREF_OUTPUT,
+            Constants.PREF_COMPANDER,
+            Constants.PREF_BASS,
+            Constants.PREF_EQ,
+            Constants.PREF_GEQ,
+            Constants.PREF_PEQ,
+            Constants.PREF_REVERB,
+            Constants.PREF_STEREOWIDE,
+            Constants.PREF_CROSSFEED,
+            Constants.PREF_TUBE,
+            Constants.PREF_DDC,
+            Constants.PREF_LIVEPROG,
+            Constants.PREF_CONVOLVER,
+        )
 
         fun isPluginInstalled(): PluginState {
             return try {

@@ -57,6 +57,34 @@ class SettingsTroubleshootingFragment : SettingsBaseFragment() {
                 true
             }
 
+        findPreference<Preference>(getString(R.string.key_oneplus13_sessions))
+            ?.setOnPreferenceClickListener {
+                lifecycleScope.launch {
+                    val report = withContext(Dispatchers.IO) {
+                        OnePlus13Diagnostics.collectSessionReport(requireContext())
+                    }
+                    requireContext().showAlert(
+                        getString(R.string.oneplus13_sessions_dialog_title),
+                        report
+                    )
+                }
+                true
+            }
+
+        findPreference<Preference>(getString(R.string.key_oneplus13_capabilities))
+            ?.setOnPreferenceClickListener {
+                lifecycleScope.launch {
+                    val report = withContext(Dispatchers.IO) {
+                        OnePlus13Diagnostics.collectCapabilityReport()
+                    }
+                    requireContext().showAlert(
+                        getString(R.string.oneplus13_capabilities_dialog_title),
+                        report
+                    )
+                }
+                true
+            }
+
         findPreference<Preference>(getString(R.string.key_oneplus13_engine_resync))
             ?.setOnPreferenceClickListener {
                 requireContext().sendLocalBroadcast(

@@ -36,7 +36,7 @@ class SettingsAboutFragment : SettingsBaseFragment() {
         setPreferencesFromResource(R.xml.app_about_preferences, rootKey)
 
         version?.summary = BuildConfig.VERSION_NAME
-        buildInfo?.isVisible = BuildConfig.DEBUG || BuildConfig.PREVIEW || isPlugin()
+        buildInfo?.isVisible = BuildConfig.DEBUG || BuildConfig.PREVIEW || BuildConfig.ONEPLUS13 || isPlugin()
         val type = if(BuildConfig.PREVIEW)
             "Preview"
         else if(BuildConfig.DEBUG)
@@ -44,10 +44,9 @@ class SettingsAboutFragment : SettingsBaseFragment() {
         else
             "Release"
 
-        buildInfo?.summary = "$type build (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"
-
+        buildInfo?.summary = if (BuildConfig.ONEPLUS13)\n            "OnePlus 13 / Android 16 · $type (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"\n        else\n            "$type build (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"\n
         googlePlay?.isVisible = !isRoot()
-        selfCheckUpdates?.isVisible = isRoot()
+        selfCheckUpdates?.isVisible = isRoot() && !BuildConfig.ONEPLUS13
         selfCheckUpdates?.setOnPreferenceClickListener {
             checkForUpdates()
             true

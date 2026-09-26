@@ -13,6 +13,7 @@ import me.timschneeberger.rootlessjamesdsp.utils.extensions.ContextExtensions.se
 import me.timschneeberger.rootlessjamesdsp.utils.RoutingObserver
 import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13Diagnostics
 import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13DecoderDiagnostics
+import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13DecoderSources
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import me.timschneeberger.rootlessjamesdsp.BuildConfig
 import me.timschneeberger.rootlessjamesdsp.R
 import me.timschneeberger.rootlessjamesdsp.preference.MaterialSwitchPreference
+import me.timschneeberger.rootlessjamesdsp.preference.DropDownPreference
 import me.timschneeberger.rootlessjamesdsp.service.NotificationListenerService
 import me.timschneeberger.rootlessjamesdsp.session.dump.DumpManager
 import me.timschneeberger.rootlessjamesdsp.utils.Constants
@@ -100,6 +102,65 @@ class SettingsTroubleshootingFragment : SettingsBaseFragment() {
                 true
             }
 
+        val decoderSourcePreference =
+            findPreference<DropDownPreference>(
+                getString(R.string.key_oneplus13_decoder_source)
+            )
+
+        if (BuildConfig.ONEPLUS13 && decoderSourcePreference != null) {
+            lifecycleScope.launch {
+                val data = withContext(Dispatchers.IO) {
+                    OnePlus13DecoderSources.status() to
+                        OnePlus13DecoderSources.list()
+                }
+                val status = data.first
+                val sources = data.second
+
+                decoderSourcePreference.entries =
+                    (listOf(getString(R.string.oneplus13_decoder_source_none)) +
+                        sources.map { it.displayName }).toTypedArray()
+                decoderSourcePreference.entryValues =
+                    (listOf("none") + sources.map { it.id }).toTypedArray()
+                decoderSourcePreference.value =
+                    status.selected.takeIf { selected ->
+                        selected == "none" || sources.any { it.id == selected }
+                    } ?: "none"
+
+                decoderSourcePreference.setOnPreferenceChangeListener { _, newValue ->
+                    val requested = newValue?.toString() ?: return@setOnPreferenceChangeListener false
+
+                    lifecycleScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            if (requested == "none") {
+                                OnePlus13DecoderSources.disable()
+                            } else {
+                                OnePlus13DecoderSources.select(requested)
+                            }
+                        }
+
+                        if (result.success) {
+                            decoderSourcePreference.value = requested
+                            requireContext().toast(
+                                R.string.oneplus13_decoder_source_reboot
+                            )
+                        } else {
+                            requireContext().showAlert(
+                                getString(R.string.oneplus13_decoder_source_failed),
+                                result.output.ifBlank {
+                                    getString(R.string.unknown_error)
+                                }
+                            )
+                            val refreshed = withContext(Dispatchers.IO) {
+                                OnePlus13DecoderSources.status()
+                            }
+                            decoderSourcePreference.value = refreshed.selected
+                        }
+                    }
+                    false
+                }
+            }
+        }
+
         findPreference<Preference>(getString(R.string.key_oneplus13_engine_resync))
             ?.setOnPreferenceClickListener {
                 requireContext().sendLocalBroadcast(
@@ -125,6 +186,8 @@ class SettingsTroubleshootingFragment : SettingsBaseFragment() {
                 writer.write(o13.report)
                 writer.write("\n")
                 writer.write(decoder.report)
+                writer.write("\n")
+                writer.write(OnePlus13DecoderSources.report())
                 writer.write("\n")
             }
 

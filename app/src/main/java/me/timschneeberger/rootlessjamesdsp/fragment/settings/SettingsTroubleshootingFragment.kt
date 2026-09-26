@@ -9,6 +9,14 @@ import android.text.InputType
 import androidx.core.content.FileProvider
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
+import me.timschneeberger.rootlessjamesdsp.utils.extensions.ContextExtensions.sendLocalBroadcast
+import me.timschneeberger.rootlessjamesdsp.utils.RoutingObserver
+import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13Diagnostics
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import androidx.preference.PreferenceCategory
+import androidx.lifecycle.lifecycleScope
 import me.timschneeberger.rootlessjamesdsp.BuildConfig
 import me.timschneeberger.rootlessjamesdsp.R
 import me.timschneeberger.rootlessjamesdsp.preference.MaterialSwitchPreference
@@ -26,10 +34,37 @@ import java.io.OutputStreamWriter
 class SettingsTroubleshootingFragment : SettingsBaseFragment() {
 
     private val dumpManager: DumpManager by inject()
+    private val routingObserver: RoutingObserver by inject()
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         preferenceManager.sharedPreferencesName = Constants.PREF_APP
         setPreferencesFromResource(R.xml.app_troubleshooting_preferences, rootKey)
+
+        findPreference<PreferenceCategory>("oneplus13_audio_chain_category")?.isVisible =
+            BuildConfig.ONEPLUS13
+
+        findPreference<Preference>(getString(R.string.key_oneplus13_audio_chain_status))
+            ?.setOnPreferenceClickListener {
+                lifecycleScope.launch {
+                    val snapshot = withContext(Dispatchers.IO) {
+                        OnePlus13Diagnostics.collect(requireContext(), routingObserver)
+                    }
+                    requireContext().showAlert(
+                        getString(R.string.oneplus13_audio_chain_dialog_title),
+                        snapshot.report
+                    )
+                }
+                true
+            }
+
+        findPreference<Preference>(getString(R.string.key_oneplus13_engine_resync))
+            ?.setOnPreferenceClickListener {
+                requireContext().sendLocalBroadcast(
+                    Intent(Constants.ACTION_SERVICE_HARD_REBOOT_CORE)
+                )
+                requireContext().toast(R.string.oneplus13_engine_resync_done)
+                true
+            }
 
         findPreference<Preference>(getString(R.string.key_troubleshooting_dump))?.setOnPreferenceClickListener {
             val debug = dumpManager.collectDebugDumps()
@@ -39,6 +74,14 @@ class SettingsTroubleshootingFragment : SettingsBaseFragment() {
             val log = File(requireContext().cacheDir, "application.log")
 
             writer.write(debug)
+
+            if (BuildConfig.ONEPLUS13) {
+                val o13 = OnePlus13Diagnostics.collect(requireContext(), routingObserver)
+                writer.write("\n")
+                writer.write(o13.report)
+                writer.write("\n")
+            }
+
             writer.write("==================> Application log\n")
             writer.flush()
 

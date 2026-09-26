@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.AudioEffectHidden
+import me.timschneeberger.rootlessjamesdsp.BuildConfig
 import me.timschneeberger.rootlessjamesdsp.MainApplication
 import me.timschneeberger.rootlessjamesdsp.interop.structure.EelVmVariable
 import me.timschneeberger.rootlessjamesdsp.utils.Constants
@@ -39,7 +40,12 @@ class JamesDspRemoteEngine(
                 Constants.ACTION_SAMPLE_RATE_UPDATED -> syncWithPreferences(arrayOf(Constants.PREF_CONVOLVER))
                 Constants.ACTION_PREFERENCES_UPDATED -> syncWithPreferences()
                 Constants.ACTION_SERVICE_RELOAD_LIVEPROG -> syncWithPreferences(arrayOf(Constants.PREF_LIVEPROG))
-                Constants.ACTION_SERVICE_HARD_REBOOT_CORE -> rebootEngine()
+                Constants.ACTION_SERVICE_HARD_REBOOT_CORE -> {
+                    rebootEngine()
+                    // Recreated native effects start from defaults. A hard
+                    // recovery must immediately restore the complete preset.
+                    syncWithPreferences(ALL_PREF_NAMESPACES)
+                }
                 Constants.ACTION_SERVICE_SOFT_REBOOT_CORE -> { clearCache(); syncWithPreferences() }
             }
         }
@@ -348,7 +354,12 @@ class JamesDspRemoteEngine(
                     .orEmpty()
                     .firstOrNull { it.uuid == EFFECT_JAMESDSP }
                     ?.run {
-                        if(name.contains("v3")) PluginState.Unsupported else PluginState.Available
+                        when {
+                            name.contains("v3") -> PluginState.Unsupported
+                            BuildConfig.ONEPLUS13 && !name.contains("OnePlus13", ignoreCase = true) ->
+                                PluginState.Unsupported
+                            else -> PluginState.Available
+                        }
                     } ?: PluginState.Unavailable
             } catch (e: Exception) {
                 Timber.e("isPluginInstalled: exception raised")

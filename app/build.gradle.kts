@@ -81,8 +81,12 @@ android {
             matchingFallbacks.add("release")
             buildConfigField("boolean", "ONEPLUS13", "true")
             // Dedicated OnePlus 13 controller: module/engine updates are handled
-            // by the systemless package, not the generic upstream self-updater.
+            // separately and this F-Droid variant must not publish telemetry.
             manifestPlaceholders["crashlyticsCollectionEnabled"] = "false"
+            configure<CrashlyticsExtension> {
+                nativeSymbolUploadEnabled = false
+                mappingFileUploadEnabled = false
+            }
         }
     }
 

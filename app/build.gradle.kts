@@ -270,9 +270,11 @@ dependencies {
     debugImplementation("com.plutolib:pluto:2.0.9")
     "previewImplementation"("com.plutolib:pluto-no-op:2.0.9")
     releaseImplementation("com.plutolib:pluto-no-op:2.0.9")
+    "oneplus13Implementation"("com.plutolib:pluto-no-op:2.0.9")
     debugImplementation("com.plutolib.plugins:bundle-core:2.0.9")
     "previewImplementation"("com.plutolib.plugins:bundle-core-no-op:2.0.9")
     releaseImplementation("com.plutolib.plugins:bundle-core-no-op:2.0.9")
+    "oneplus13Implementation"("com.plutolib.plugins:bundle-core-no-op:2.0.9")
 
     // Unit tests
     testImplementation("junit:junit:4.13.2")

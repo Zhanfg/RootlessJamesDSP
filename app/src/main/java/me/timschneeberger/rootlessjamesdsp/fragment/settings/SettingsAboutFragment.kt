@@ -44,7 +44,11 @@ class SettingsAboutFragment : SettingsBaseFragment() {
         else
             "Release"
 
-        buildInfo?.summary = if (BuildConfig.ONEPLUS13)\n            "OnePlus 13 / Android 16 · $type (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"\n        else\n            "$type build (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"\n
+        buildInfo?.summary = if (BuildConfig.ONEPLUS13)
+            "OnePlus 13 / Android 16 · $type (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"
+        else
+            "$type build (${BuildConfig.FLAVOR_dependencies}) @${BuildConfig.COMMIT_SHA} (compiled at ${BuildConfig.BUILD_TIME})"
+
         googlePlay?.isVisible = !isRoot()
         selfCheckUpdates?.isVisible = isRoot() && !BuildConfig.ONEPLUS13
         selfCheckUpdates?.setOnPreferenceClickListener {
@@ -84,7 +88,7 @@ class SettingsAboutFragment : SettingsBaseFragment() {
     }
 
     private fun checkForUpdates() {
-        if(!isRoot())
+        if(BuildConfig.ONEPLUS13 || !isRoot())
             return
 
         CoroutineScope(Dispatchers.Default).launch {

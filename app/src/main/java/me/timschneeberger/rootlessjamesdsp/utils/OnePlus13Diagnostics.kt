@@ -274,6 +274,15 @@ object OnePlus13Diagnostics {
                 echo "audioserver=$(pidof audioserver 2>/dev/null)"
                 echo "audiohal=$(pidof audiohalservice.qti 2>/dev/null)"
                 echo "module_lib=$(test -r /odm/lib64/soundfx/libjamesdsp_aidl.so && echo present || echo missing)"
+                if [ -d /data/adb/modules/ainur_jamesdsp ] &&                    [ ! -f /data/adb/modules/ainur_jamesdsp/disable ] &&                    [ ! -f /data/adb/modules/ainur_jamesdsp/remove ]; then
+                  echo "legacy_ainur=active"
+                else
+                  echo "legacy_ainur=inactive"
+                fi
+                POLICY="$(dumpsys media.audio_policy 2>/dev/null)"
+                echo "james_effect_instances=$(printf '%s\n' "$POLICY" | grep -Eic 'James.*DSP|JamesDSP')"
+                echo "james_effect_enabled=$(printf '%s\n' "$POLICY" | grep -Ei 'James.*DSP|JamesDSP' | grep -c 'Enabled')"
+                echo "james_effect_disabled=$(printf '%s\n' "$POLICY" | grep -Ei 'James.*DSP|JamesDSP' | grep -c 'Disabled')"
                 echo "effect_registration:"
                 grep -H -i -E 'f27317f4-c984-4de6-9a90-545759495bf2|libjamesdsp_aidl\.so' \
                   /odm/etc/audio_effects_config.xml \
@@ -308,6 +317,13 @@ object OnePlus13Diagnostics {
             probeValue("audiohal")?.isNotBlank()
                 ?: !BuildConfig.ONEPLUS13
         val moduleLibOk = probeValue("module_lib") == "present"
+        val legacyAinurActive = probeValue("legacy_ainur") == "active"
+        val jamesEffectInstances =
+            probeValue("james_effect_instances")?.toIntOrNull() ?: 0
+        val jamesEnabledInstances =
+            probeValue("james_effect_enabled")?.toIntOrNull() ?: 0
+        val jamesDisabledInstances =
+            probeValue("james_effect_disabled")?.toIntOrNull() ?: 0
 
         val oplusPresent = serviceProbe.contains("oplus", ignoreCase = true)
         val dolbyPresent = serviceProbe.contains("dolby", ignoreCase = true)
@@ -363,6 +379,7 @@ object OnePlus13Diagnostics {
         }
 
         val engineState = when {
+            jamesEffectInstances > 0 && jamesEnabledInstances == 0 -> "Bypassed"
             sessionEntries.isEmpty() -> "Idle"
             liveEngines.any { it.supportsHealthProbe } &&
                 liveEngines.all { it.isPidValid && !it.isSampleRateAbnormal } -> "Alive"
@@ -463,6 +480,10 @@ object OnePlus13Diagnostics {
             appendLine("oplusAudioPresent=$oplusPresent")
             appendLine("dolbyPresent=$dolbyPresent")
             appendLine("spatialPresent=$spatialPresent")
+            appendLine("legacyAinurModuleActive=$legacyAinurActive")
+            appendLine("jamesEffectInstances=$jamesEffectInstances")
+            appendLine("jamesEnabledInstances=$jamesEnabledInstances")
+            appendLine("jamesDisabledInstances=$jamesDisabledInstances")
 
             if (BuildConfig.ONEPLUS13) {
                 appendLine()

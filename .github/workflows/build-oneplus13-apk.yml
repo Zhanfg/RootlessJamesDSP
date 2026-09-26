@@ -1,0 +1,109 @@
+name: Build OnePlus 13 JamesDSP APK
+
+on:
+  push:
+    branches: [ oneplus-integration ]
+    paths:
+      - 'app/**'
+      - 'codeview/**'
+      - 'hidden-api-*/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '.github/workflows/build-oneplus13-apk.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: oneplus13-jdsp-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: gradle
+
+      - name: Verify dedicated variant exists
+        run: |
+          chmod +x ./gradlew
+          ./gradlew tasks --all --console=plain | grep -q 'assembleRootFdroidOneplus13'
+
+      - name: Build OnePlus 13 root controller
+        run: |
+          ./gradlew assembleRootFdroidOneplus13             -Poneplus13=true             --no-daemon             --stacktrace
+
+      - name: Collect arm64 APK
+        run: |
+          set -eux
+          mkdir -p build/o13-apk
+          find app/build/outputs/apk -type f -name '*.apk' -print
+
+          ARM64="$(find app/build/outputs/apk -type f             -path '*/rootFdroid/oneplus13/*'             -name '*arm64-v8a*.apk' | sort | head -1)"
+          UNIVERSAL="$(find app/build/outputs/apk -type f             -path '*/rootFdroid/oneplus13/*'             -name '*universal*.apk' | sort | head -1)"
+
+          [ -n "$ARM64" ] && [ -s "$ARM64" ]
+          cp "$ARM64" build/o13-apk/JamesDSP-OnePlus13-Android16-arm64.apk
+
+          if [ -n "$UNIVERSAL" ] && [ -s "$UNIVERSAL" ]; then
+            cp "$UNIVERSAL" build/o13-apk/JamesDSP-OnePlus13-Android16-universal.apk
+          fi
+
+          sha256sum build/o13-apk/*.apk | tee build/o13-apk/SHA256SUMS
+
+      - name: Audit APK contents
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile, sys
+
+          apk = pathlib.Path('build/o13-apk/JamesDSP-OnePlus13-Android16-arm64.apk')
+          with zipfile.ZipFile(apk) as z:
+              names = z.namelist()
+              libs = [n for n in names if n.startswith('lib/') and n.endswith('.so')]
+              abis = sorted({n.split('/')[1] for n in libs})
+              print('APK bytes:', apk.stat().st_size)
+              print('ABIs:', abis)
+              print('Native libs:')
+              for n in libs:
+                  print(' ', n)
+              for prefix in ('assets/Convolver/', 'assets/DDC/', 'assets/Liveprog/'):
+                  print(prefix, sum(n.startswith(prefix) for n in names))
+
+              if abis != ['arm64-v8a']:
+                  raise SystemExit(f'Unexpected ABI set: {abis}')
+
+              forbidden = [
+                  'lib/armeabi-v7a/',
+                  'lib/x86/',
+                  'lib/x86_64/',
+                  'libcrashlytics-handler.so',
+                  'libcrashlytics.so',
+              ]
+              bad = [n for n in names if any(x in n for x in forbidden)]
+              if bad:
+                  print('Unexpected generic/full-build payload:', *bad, sep='\n  ')
+                  raise SystemExit(1)
+
+              required_assets = (
+                  'assets/Convolver/Church.wav',
+                  'assets/DDC/Butterworth.vdc',
+                  'assets/Liveprog/3bandSplitting.eel',
+              )
+              missing = [x for x in required_assets if x not in names]
+              if missing:
+                  raise SystemExit(f'Missing JamesDSP assets: {missing}')
+          PY
+
+      - name: Upload controller APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnePlus13-JamesDSP-Android16-Controller
+          path: build/o13-apk/

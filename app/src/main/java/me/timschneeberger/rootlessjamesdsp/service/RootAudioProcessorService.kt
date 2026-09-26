@@ -32,6 +32,7 @@ import me.timschneeberger.rootlessjamesdsp.model.room.BlockedApp
 import me.timschneeberger.rootlessjamesdsp.session.root.OnRootSessionChangeListener
 import me.timschneeberger.rootlessjamesdsp.session.root.RootSessionDumpManager
 import me.timschneeberger.rootlessjamesdsp.utils.Constants
+import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13DecoderRouting
 import me.timschneeberger.rootlessjamesdsp.utils.extensions.ContextExtensions.sendLocalBroadcast
 import me.timschneeberger.rootlessjamesdsp.utils.notifications.Notifications
 import me.timschneeberger.rootlessjamesdsp.utils.notifications.ServiceNotificationHelper
@@ -151,6 +152,7 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
             R.string.key_powered_on,
             R.string.key_audioformat_enhanced_processing,
             R.string.key_oneplus13_safety_guard,
+            R.string.key_oneplus13_decoder_routing,
         ).forEach {
             onSharedPreferenceChanged(preferences.preferences, getString(it))
         }
@@ -219,6 +221,13 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
         audioManager.unregisterAudioPlaybackCallback(audioPlaybackCallback)
         routeResyncJob?.cancel()
         routeResyncJob = null
+        if (BuildConfig.ONEPLUS13) {
+            OnePlus13DecoderRouting.apply(
+                this,
+                OnePlus13DecoderRouting.MODE_AUTO,
+                processingEnabled = false,
+            )
+        }
 
         // Notify app about service termination and unregister
         sendLocalBroadcast(Intent(Constants.ACTION_SERVICE_STOPPED))
@@ -237,8 +246,14 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
             getString(R.string.key_oneplus13_safety_guard) -> {
                 applyOnePlus13SafetyGuard()
             }
+            getString(R.string.key_oneplus13_decoder_routing) -> {
+                applyOnePlus13DecoderRouting()
+            }
             getString(R.string.key_powered_on) -> {
                 app.rootSessionDatabase.enabled = sharedPreferences?.getBoolean(key, true) ?: true
+                if (BuildConfig.ONEPLUS13) {
+                    applyOnePlus13DecoderRouting()
+                }
                 updateServiceNotification()
             }
             getString(R.string.key_audioformat_enhanced_processing) -> {
@@ -286,6 +301,25 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
             enabled,
             supported,
             app.rootSessionDatabase.sessionList.size,
+        )
+    }
+
+    private fun applyOnePlus13DecoderRouting() {
+        if (!BuildConfig.ONEPLUS13) return
+
+        val mode = preferences.get<String>(R.string.key_oneplus13_decoder_routing)
+        val powered = preferences.get<Boolean>(R.string.key_powered_on)
+        val result = OnePlus13DecoderRouting.apply(
+            this,
+            mode,
+            processingEnabled = powered,
+        )
+        Timber.i(
+            "O13 decoder routing: mode=%s powered=%s success=%s current=%s",
+            mode,
+            powered,
+            result.success,
+            result.currentValue,
         )
     }
 

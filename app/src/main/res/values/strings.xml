@@ -742,4 +742,14 @@ Please press \'Continue\' below to re-do the setup wizard.</string>
     <string name="oneplus13_capabilities_summary">Show which standard and OnePlus 13 extensions are available with the current driver.</string>
     <string name="oneplus13_capabilities_dialog_title">JamesDSP driver capabilities</string>
 
+    <string name="key_oneplus13_decoder_status">oneplus13_decoder_status</string>
+    <string name="key_oneplus13_decoder_routing">oneplus13_decoder_routing</string>
+    <string name="oneplus13_decoder_status">Decoder / Codec2 status</string>
+    <string name="oneplus13_decoder_status_summary">Inspect audio decoders, active Codec2 components, and offload/direct playback paths.</string>
+    <string name="oneplus13_decoder_dialog_title">OnePlus 13 decoder stack</string>
+    <string name="oneplus13_decoder_routing">Decoder routing</string>
+    <string name="oneplus13_decoder_routing_auto">Auto / native offload</string>
+    <string name="oneplus13_decoder_routing_dsp">Prefer DSP-compatible PCM</string>
+    <string name="oneplus13_decoder_routing_summary">Auto keeps the device's native decoder/offload policy. DSP-compatible mode temporarily disables compress offload while JamesDSP is processing so decoded PCM can return through AudioFlinger effects.</string>
+
 </resources>

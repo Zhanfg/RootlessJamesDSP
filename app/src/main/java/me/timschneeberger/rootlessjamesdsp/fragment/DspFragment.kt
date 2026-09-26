@@ -217,6 +217,11 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when(key) {
+            getString(R.string.key_powered_on) -> {
+                if (BuildConfig.ONEPLUS13) {
+                    refreshOnePlus13Status(showDialog = false, deepProbe = true)
+                }
+            }
             getString(R.string.key_device_profiles_enable) -> {
                 (binding.cardDeviceProfiles.parent as ViewGroup).isVisible =
                     prefsApp.get<Boolean>(R.string.key_device_profiles_enable)

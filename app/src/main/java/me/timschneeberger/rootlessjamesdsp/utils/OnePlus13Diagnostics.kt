@@ -281,10 +281,9 @@ object OnePlus13Diagnostics {
                 else
                   echo "legacy_ainur=inactive"
                 fi
-                POLICY="$(dumpsys media.audio_policy 2>/dev/null)"
-                echo "james_effect_instances=$(printf '%s\n' "${' | grep -Eic 'James.*DSP|JamesDSP')"
-                echo "james_effect_enabled=$(printf '%s\n' "$POLICY" | grep -Ei 'James.*DSP|JamesDSP' | grep -c 'Enabled')"
-                echo "james_effect_disabled=$(printf '%s\n' "$POLICY" | grep -Ei 'James.*DSP|JamesDSP' | grep -c 'Disabled')"
+                echo "james_effect_instances=$(dumpsys media.audio_policy 2>/dev/null | grep -Ei 'James.*DSP|JamesDSP' | grep -Ec 'Effect ID:|Music Effect\?' || true)"
+                echo "james_effect_enabled=$(dumpsys media.audio_policy 2>/dev/null | grep -Ei 'James.*DSP|JamesDSP' | grep -c 'Enabled' || true)"
+                echo "james_effect_disabled=$(dumpsys media.audio_policy 2>/dev/null | grep -Ei 'James.*DSP|JamesDSP' | grep -c 'Disabled' || true)"
                 echo "effect_registration:"
                 grep -H -i -E 'f27317f4-c984-4de6-9a90-545759495bf2|libjamesdsp_aidl\.so' \
                   /odm/etc/audio_effects_config.xml \

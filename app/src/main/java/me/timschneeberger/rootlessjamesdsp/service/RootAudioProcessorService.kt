@@ -147,7 +147,11 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
         }
 
         // Initialize shared preferences manually
-        arrayOf(R.string.key_powered_on, R.string.key_audioformat_enhanced_processing).forEach {
+        arrayOf(
+            R.string.key_powered_on,
+            R.string.key_audioformat_enhanced_processing,
+            R.string.key_oneplus13_safety_guard,
+        ).forEach {
             onSharedPreferenceChanged(preferences.preferences, getString(it))
         }
     }
@@ -213,6 +217,8 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
         // Unregister database observer
         blockedApps.removeObserver(blockedAppObserver)
         audioManager.unregisterAudioPlaybackCallback(audioPlaybackCallback)
+        routeResyncJob?.cancel()
+        routeResyncJob = null
 
         // Notify app about service termination and unregister
         sendLocalBroadcast(Intent(Constants.ACTION_SERVICE_STOPPED))
@@ -228,6 +234,9 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
             getString(R.string.key_audioformat_processing) -> { updateServiceNotification() }
+            getString(R.string.key_oneplus13_safety_guard) -> {
+                applyOnePlus13SafetyGuard()
+            }
             getString(R.string.key_powered_on) -> {
                 app.rootSessionDatabase.enabled = sharedPreferences?.getBoolean(key, true) ?: true
                 updateServiceNotification()
@@ -258,6 +267,26 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
 
     override fun onSessionChanged(sessionList: HashMap<Int, IEffectSession>) {
         updateServiceNotification()
+        applyOnePlus13SafetyGuard()
+    }
+
+    private fun applyOnePlus13SafetyGuard() {
+        if (!BuildConfig.ONEPLUS13) return
+
+        val enabled = preferences.get<Boolean>(R.string.key_oneplus13_safety_guard)
+        var supported = 0
+        app.rootSessionDatabase.sessionList.values.forEach { session ->
+            val effect = (session as? RemoteEffectSession)?.effect ?: return@forEach
+            if (effect.setSafetyGuardEnabled(enabled)) {
+                supported++
+            }
+        }
+        Timber.d(
+            "O13 Safety Guard requested=%s; supported sessions=%d/%d",
+            enabled,
+            supported,
+            app.rootSessionDatabase.sessionList.size,
+        )
     }
 
     private fun updateServiceNotification() {

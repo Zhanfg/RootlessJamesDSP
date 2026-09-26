@@ -13,6 +13,7 @@ import kotlin.math.roundToInt
 object OnePlus13Diagnostics {
     private val effectUuid = UUID.fromString("f27317f4-c984-4de6-9a90-545759495bf2")
     @Volatile private var cachedCoexistLabel = "OPlus?/Dolby?"
+    @Volatile private var cachedPolicyEngineState: String? = null
     private val lastBlockCounts = hashMapOf<Int, Int>()
 
     data class Snapshot(
@@ -115,9 +116,10 @@ object OnePlus13Diagnostics {
             else -> "Unavailable"
         }
         val engineState = when {
-            entries.isEmpty() -> "Idle"
-            healthProbeBad -> "Unhealthy"
             telemetrySupported && progressing -> "Processing"
+            healthProbeBad -> "Unhealthy"
+            cachedPolicyEngineState == "Bypassed" -> "Bypassed"
+            entries.isEmpty() -> "Idle"
             compatibleMode && engines.none { it.supportsHealthProbe } -> "Unverified"
             else -> "Active"
         }
@@ -386,6 +388,7 @@ object OnePlus13Diagnostics {
             compatibleMode -> "Unverified"
             else -> "Active"
         }
+        cachedPolicyEngineState = engineState
 
         val coexistLabel = buildString {
             append("OPlus")

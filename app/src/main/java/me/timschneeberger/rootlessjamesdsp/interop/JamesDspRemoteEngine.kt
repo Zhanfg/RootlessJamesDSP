@@ -330,9 +330,27 @@ class JamesDspRemoteEngine(
     val convolverHash: Int
         get() = effect.getParameterInt(30003) ?: -1
 
+    // Optional OnePlus 13 telemetry extension. Legacy/generic drivers are
+    // expected to return null for unsupported parameter ids.
+    val peakMilliDb: Int?
+        get() = effect.getParameterInt(20010)
+    val clippedSamples: Int?
+        get() = effect.getParameterInt(20011)
+    val lastProcessUs: Int?
+        get() = effect.getParameterInt(20012)
+    val maxProcessUs: Int?
+        get() = effect.getParameterInt(20013)
+    val lastProcessedFrames: Int?
+        get() = effect.getParameterInt(20014)
+    val processedBlocks: Int?
+        get() = effect.getParameterInt(20015)
+    val supportsOnePlus13Telemetry: Boolean
+        get() = peakMilliDb != null && processedBlocks != null
+
     enum class PluginState {
         Unavailable,
         Available,
+        Compatible,
         Unsupported
     }
 
@@ -369,9 +387,15 @@ class JamesDspRemoteEngine(
                     .firstOrNull { it.uuid == EFFECT_JAMESDSP }
                     ?.run {
                         when {
-                            name.contains("v3") -> PluginState.Unsupported
-                            BuildConfig.ONEPLUS13 && !name.contains("OnePlus13", ignoreCase = true) ->
-                                PluginState.Unsupported
+                            // Known legacy protocol generation that this client
+                            // cannot safely drive.
+                            name.contains("v3", ignoreCase = true) -> PluginState.Unsupported
+                            // On the O13 build, any other JamesDSP implementation
+                            // sharing the UUID remains usable. Device-specific
+                            // extras are enabled only when capabilities probe OK.
+                            BuildConfig.ONEPLUS13 &&
+                                !name.contains("OnePlus13", ignoreCase = true) ->
+                                PluginState.Compatible
                             else -> PluginState.Available
                         }
                     } ?: PluginState.Unavailable

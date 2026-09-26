@@ -16,6 +16,13 @@
             android:title="@string/oneplus13_engine_resync"
             android:summary="@string/oneplus13_engine_resync_summary"
             app:iconSpaceReserved="false" />
+        <me.timschneeberger.rootlessjamesdsp.preference.MaterialSwitchPreference
+            app:key="@string/key_oneplus13_safety_guard"
+            app:title="@string/oneplus13_safety_guard"
+            app:defaultValue="@bool/default_oneplus13_safety_guard"
+            app:summaryOn="@string/oneplus13_safety_guard_on"
+            app:summaryOff="@string/oneplus13_safety_guard_off"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/troubleshooting_docs"

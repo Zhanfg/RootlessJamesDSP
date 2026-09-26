@@ -12,6 +12,8 @@ import kotlin.math.roundToInt
 
 object OnePlus13Diagnostics {
     private val effectUuid = UUID.fromString("f27317f4-c984-4de6-9a90-545759495bf2")
+    @Volatile private var cachedCoexistLabel = "OPlus?/Dolby?"
+    private val lastBlockCounts = hashMapOf<Int, Int>()
 
     data class Snapshot(
         val headline: String,
@@ -21,6 +23,118 @@ object OnePlus13Diagnostics {
         val telemetrySupported: Boolean,
         val overloadDetected: Boolean,
     )
+
+    /**
+     * Fast UI poll: no root shell, no dumpsys, no filesystem scan.
+     * Unsupported vendor parameters simply disable that metric.
+     */
+    fun collectQuick(routingObserver: RoutingObserver): Snapshot {
+        val descriptor = runCatching {
+            AudioEffect.queryEffects().orEmpty().firstOrNull { it.uuid == effectUuid }
+        }.getOrNull()
+        val pluginState = JamesDspRemoteEngine.isPluginInstalled()
+        val compatibleMode = pluginState == JamesDspRemoteEngine.PluginState.Compatible
+        val dedicatedDriver =
+            descriptor?.name?.contains("OnePlus13", ignoreCase = true) == true
+
+        val entries = runCatching {
+            MainApplication.instance.rootSessionDatabase.sessionList.entries
+                .mapNotNull { entry ->
+                    (entry.value as? RemoteEffectSession)?.let { entry.key to it }
+                }
+        }.getOrDefault(emptyList())
+
+        val engines = entries.mapNotNull { it.second.effect }
+        val rates = engines.mapNotNull {
+            runCatching { it.sampleRateOrNull }.getOrNull()?.takeIf { rate -> rate > 0 }
+        }.distinct()
+
+        var telemetrySupported = false
+        var overload = false
+        var progressing = false
+        var healthProbeBad = false
+
+        entries.forEach { (sid, session) ->
+            val engine = session.effect ?: return@forEach
+            if (engine.supportsHealthProbe &&
+                (!engine.isPidValid || engine.isSampleRateAbnormal)) {
+                healthProbeBad = true
+            }
+
+            val blocks = runCatching { engine.processedBlocks }.getOrNull()
+            val peak = runCatching { engine.peakMilliDb }.getOrNull()
+            val clips = runCatching { engine.clippedSamples }.getOrNull()
+            val processUs = runCatching { engine.lastProcessUs }.getOrNull()
+            val frames = runCatching { engine.lastProcessedFrames }.getOrNull()
+            val rate = runCatching { engine.sampleRateOrNull }.getOrNull()
+
+            if (blocks != null && peak != null && processUs != null) {
+                telemetrySupported = true
+                val old = synchronized(lastBlockCounts) { lastBlockCounts.put(sid, blocks) }
+                if (old != null && blocks > old) progressing = true
+
+                val budgetUs =
+                    if (frames != null && frames > 0 && rate != null && rate > 0)
+                        frames.toDouble() / rate * 1_000_000.0
+                    else null
+                val loadPct =
+                    if (budgetUs != null && processUs >= 0)
+                        processUs / budgetUs * 100.0
+                    else null
+
+                if ((clips ?: 0) > 0 || peak >= 0 ||
+                    (loadPct != null && loadPct >= 100.0)) {
+                    overload = true
+                }
+            }
+        }
+
+        synchronized(lastBlockCounts) {
+            lastBlockCounts.keys.retainAll(entries.map { it.first }.toSet())
+        }
+
+        val driverLabel = when {
+            dedicatedDriver -> "Dedicated"
+            compatibleMode -> "Compatible"
+            pluginState == JamesDspRemoteEngine.PluginState.Available -> "Standard"
+            pluginState == JamesDspRemoteEngine.PluginState.Unsupported -> "Unsupported"
+            else -> "Unavailable"
+        }
+        val engineState = when {
+            entries.isEmpty() -> "Idle"
+            healthProbeBad -> "Unhealthy"
+            telemetrySupported && progressing -> "Processing"
+            compatibleMode && engines.none { it.supportsHealthProbe } -> "Unverified"
+            else -> "Active"
+        }
+        val route = routingObserver.currentDevice?.name ?: "Unknown"
+        val meter = when {
+            !telemetrySupported -> "meter n/a"
+            overload -> "OVERLOAD"
+            else -> "headroom OK"
+        }
+        val usable =
+            pluginState == JamesDspRemoteEngine.PluginState.Available ||
+                pluginState == JamesDspRemoteEngine.PluginState.Compatible
+
+        val headline = buildString {
+            append(if (usable && !healthProbeBad) "Healthy" else "Needs attention")
+            append(" · $driverLabel · $engineState · $route")
+            append(" · $cachedCoexistLabel")
+            if (rates.isNotEmpty()) append(" · ${rates.joinToString("/")} Hz")
+            append(" · $meter · ${entries.size} session")
+            if (entries.size != 1) append('s')
+        }
+
+        return Snapshot(
+            headline = headline,
+            report = headline,
+            healthy = usable && !healthProbeBad,
+            compatibleMode = compatibleMode,
+            telemetrySupported = telemetrySupported,
+            overloadDetected = overload,
+        )
+    }
 
     fun collect(context: Context, routingObserver: RoutingObserver): Snapshot {
         val descriptor = runCatching {
@@ -221,6 +335,7 @@ object OnePlus13Diagnostics {
             append(if (dolbyPresent) "✓" else "?")
             if (spatialPresent) append("/Spatial✓")
         }
+        cachedCoexistLabel = coexistLabel
 
         val headline = buildString {
             append(if (healthy) "Healthy" else "Needs attention")

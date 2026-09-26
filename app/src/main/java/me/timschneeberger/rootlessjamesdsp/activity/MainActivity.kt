@@ -288,7 +288,8 @@ class MainActivity : BaseActivity() {
                 }
                 else if (isRoot()) {
                     when(JamesDspRemoteEngine.isPluginInstalled()) {
-                        JamesDspRemoteEngine.PluginState.Available -> {
+                        JamesDspRemoteEngine.PluginState.Available,
+                        JamesDspRemoteEngine.PluginState.Compatible -> {
                             binding.powerToggle.isToggled = !binding.powerToggle.isToggled
                             prefsApp.set(R.string.key_powered_on, binding.powerToggle.isToggled)
                         }
@@ -332,6 +333,9 @@ class MainActivity : BaseActivity() {
         if(isRoot()) {
             when(JamesDspRemoteEngine.isPluginInstalled()) {
                 JamesDspRemoteEngine.PluginState.Unavailable -> showLibraryLoadError()
+                JamesDspRemoteEngine.PluginState.Compatible -> {
+                    Timber.w("Using compatible JamesDSP driver; OnePlus 13 extras may be limited")
+                }
                 JamesDspRemoteEngine.PluginState.Unsupported -> {
                     prefsApp.set(R.string.key_powered_on, false)
                     showYesNoAlert(

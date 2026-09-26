@@ -13,7 +13,11 @@ plugins {
 
 android {
 
-    val SUPPORTED_ABIS = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+    val ONEPLUS13_BUILD = providers.gradleProperty("oneplus13").orNull == "true"
+    val SUPPORTED_ABIS = if (ONEPLUS13_BUILD)
+        setOf("arm64-v8a")
+    else
+        setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
     compileSdk = AndroidConfig.compileSdk
     project.setProperty("archivesBaseName", "RootlessJamesDSP-v${AndroidConfig.versionName}")
 
@@ -31,6 +35,7 @@ android {
         buildConfigField("String", "BUILD_TIME", "\"${getBuildTime()}\"")
         buildConfigField("boolean", "PREVIEW", "false")
         buildConfigField("boolean", "PLUGIN", "false")
+        buildConfigField("boolean", "ONEPLUS13", "false")
 
         externalNativeBuild {
             cmake {
@@ -69,6 +74,15 @@ android {
             val debugType = getByName("debug")
             versionNameSuffix = debugType.versionNameSuffix
             matchingFallbacks.add("release")
+        }
+
+        create("oneplus13") {
+            initWith(getByName("release"))
+            matchingFallbacks.add("release")
+            buildConfigField("boolean", "ONEPLUS13", "true")
+            // Dedicated OnePlus 13 controller: module/engine updates are handled
+            // by the systemless package, not the generic upstream self-updater.
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = "false"
         }
     }
 

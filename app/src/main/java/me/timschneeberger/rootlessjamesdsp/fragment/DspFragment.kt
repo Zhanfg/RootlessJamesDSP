@@ -10,6 +10,12 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
+import me.timschneeberger.rootlessjamesdsp.utils.extensions.ContextExtensions.showAlert
+import me.timschneeberger.rootlessjamesdsp.utils.RoutingObserver
+import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13Diagnostics
+import me.timschneeberger.rootlessjamesdsp.BuildConfig
+import kotlinx.coroutines.withContext
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,6 +30,7 @@ import java.util.Locale
 class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListener {
     private val prefsApp: Preferences.App by inject()
     private val prefsVar: Preferences.Var by inject()
+    private val routingObserver: RoutingObserver by inject()
 
     private lateinit var binding: FragmentDspBinding
     private var updateNoticeOnClick: (() -> Unit)? = null
@@ -57,6 +64,11 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
         }
         binding.updateNotice.setOnRootClickListener {
             updateNoticeOnClick?.invoke()
+        }
+
+        binding.oneplus13Status.isVisible = BuildConfig.ONEPLUS13
+        binding.oneplus13Status.setOnRootClickListener {
+            refreshOnePlus13Status(showDialog = true)
         }
 
         // Should show notice?
@@ -132,6 +144,36 @@ class DspFragment : Fragment(), SharedPreferences.OnSharedPreferenceChangeListen
         }
 
         return binding.root
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (BuildConfig.ONEPLUS13) {
+            refreshOnePlus13Status(showDialog = false)
+        }
+    }
+
+    private fun refreshOnePlus13Status(showDialog: Boolean) {
+        if (!BuildConfig.ONEPLUS13 || !this::binding.isInitialized) return
+
+        lifecycleScope.launch {
+            val snapshot = withContext(Dispatchers.IO) {
+                OnePlus13Diagnostics.collect(requireContext(), routingObserver)
+            }
+            if (!isAdded || !this@DspFragment::binding.isInitialized) return@launch
+
+            binding.oneplus13Status.titleText =
+                getString(R.string.oneplus13_audio_chain_header)
+            binding.oneplus13Status.bodyText = snapshot.headline
+            binding.oneplus13Status.isVisible = true
+
+            if (showDialog) {
+                requireContext().showAlert(
+                    getString(R.string.oneplus13_audio_chain_dialog_title),
+                    snapshot.report
+                )
+            }
+        }
     }
 
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {

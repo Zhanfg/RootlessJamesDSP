@@ -33,6 +33,7 @@ class JamesDspRemoteEngine(
 ) : JamesDspBaseEngine(context, callbacks) {
 
     private var convolverSampleRate = 0
+    private var requestedSafetyGuard: Boolean? = null
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -126,6 +127,9 @@ class JamesDspRemoteEngine(
         try {
             effect?.release()
             effect = createEffect()
+            requestedSafetyGuard?.let { desired ->
+                setSafetyGuardEnabled(desired)
+            }
         }
         catch (ex: IllegalStateException) {
             Timber.e("Failed to re-instantiate JamesDSP effect")
@@ -378,6 +382,7 @@ class JamesDspRemoteEngine(
         get() = safetyGuardEnabled != null && safetyGainMilliDb != null
 
     fun setSafetyGuardEnabled(enable: Boolean): Boolean {
+        requestedSafetyGuard = enable
         return effect.setParameter(1600, enable.toShort()) == AudioEffect.SUCCESS
     }
     val supportsOnePlus13Telemetry: Boolean

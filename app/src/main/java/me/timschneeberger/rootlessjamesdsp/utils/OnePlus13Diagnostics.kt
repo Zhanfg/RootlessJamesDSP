@@ -53,6 +53,10 @@ object OnePlus13Diagnostics {
         var overload = false
         var progressing = false
         var healthProbeBad = false
+        var safetySupported = false
+        var safetyEnabled = false
+        var safetyGainMilliDb: Int? = null
+        var clipEvents: Int? = null
 
         entries.forEach { (sid, session) ->
             val engine = session.effect ?: return@forEach
@@ -67,6 +71,16 @@ object OnePlus13Diagnostics {
             val processUs = runCatching { engine.lastProcessUs }.getOrNull()
             val frames = runCatching { engine.lastProcessedFrames }.getOrNull()
             val rate = runCatching { engine.sampleRateOrNull }.getOrNull()
+            val guardEnabled = runCatching { engine.safetyGuardEnabled }.getOrNull()
+            val guardGain = runCatching { engine.safetyGainMilliDb }.getOrNull()
+            val guardClipEvents = runCatching { engine.clipEvents }.getOrNull()
+
+            if (guardEnabled != null && guardGain != null) {
+                safetySupported = true
+                safetyEnabled = safetyEnabled || guardEnabled
+                safetyGainMilliDb = listOfNotNull(safetyGainMilliDb, guardGain).minOrNull()
+                clipEvents = listOfNotNull(clipEvents, guardClipEvents).maxOrNull()
+            }
 
             if (blocks != null && peak != null && processUs != null) {
                 telemetrySupported = true
@@ -113,6 +127,13 @@ object OnePlus13Diagnostics {
             overload -> "OVERLOAD"
             else -> "headroom OK"
         }
+        val guardLabel = when {
+            !safetySupported -> null
+            !safetyEnabled -> "Guard OFF"
+            (safetyGainMilliDb ?: 0) <= -50 ->
+                "Guard ${String.format(java.util.Locale.US, "%.1f", (safetyGainMilliDb ?: 0) / 1000.0)} dB"
+            else -> "Guard ON"
+        }
         val usable =
             pluginState == JamesDspRemoteEngine.PluginState.Available ||
                 pluginState == JamesDspRemoteEngine.PluginState.Compatible
@@ -122,7 +143,9 @@ object OnePlus13Diagnostics {
             append(" · $driverLabel · $engineState · $route")
             append(" · $cachedCoexistLabel")
             if (rates.isNotEmpty()) append(" · ${rates.joinToString("/")} Hz")
-            append(" · $meter · ${entries.size} session")
+            append(" · $meter")
+            guardLabel?.let { append(" · $it") }
+            append(" · ${entries.size} session")
             if (entries.size != 1) append('s')
         }
 
@@ -179,6 +202,9 @@ object OnePlus13Diagnostics {
             val maxProcessUs = runCatching { engine.maxProcessUs }.getOrNull()
             val frames = runCatching { engine.lastProcessedFrames }.getOrNull()
             val blocks = runCatching { engine.processedBlocks }.getOrNull()
+            val guardEnabled = runCatching { engine.safetyGuardEnabled }.getOrNull()
+            val guardGainMilliDb = runCatching { engine.safetyGainMilliDb }.getOrNull()
+            val clipEvents = runCatching { engine.clipEvents }.getOrNull()
             val probeUs = ((System.nanoTime() - started) / 1000L)
                 .coerceAtMost(Int.MAX_VALUE.toLong())
                 .toInt()
@@ -190,6 +216,9 @@ object OnePlus13Diagnostics {
                 maxProcessUs = maxProcessUs,
                 frames = frames,
                 blocks = blocks,
+                safetyGuardEnabled = guardEnabled,
+                safetyGainMilliDb = guardGainMilliDb,
+                clipEvents = clipEvents,
                 probeUs = probeUs,
             )
         }
@@ -206,6 +235,12 @@ object OnePlus13Diagnostics {
         val maxProcessUs = telemetry.mapNotNull { it.maxProcessUs }.maxOrNull()
         val processedFrames = telemetry.mapNotNull { it.frames }.maxOrNull()
         val processedBlocks = telemetry.mapNotNull { it.blocks }.maxOrNull()
+        val safetyGuardSupported = telemetry.any {
+            it.safetyGuardEnabled != null && it.safetyGainMilliDb != null
+        }
+        val safetyGuardEnabled = telemetry.any { it.safetyGuardEnabled == true }
+        val safetyGainMilliDb = telemetry.mapNotNull { it.safetyGainMilliDb }.minOrNull()
+        val clipEvents = telemetry.mapNotNull { it.clipEvents }.maxOrNull()
         val controlProbeUs = telemetry.map { it.probeUs }.maxOrNull()
 
         val firstRate = sampleRates.firstOrNull()
@@ -319,6 +354,13 @@ object OnePlus13Diagnostics {
             peakMilliDb != null && peakMilliDb >= -1000 -> "near 0 dBFS"
             else -> "headroom OK"
         }
+        val safetyLabel = when {
+            !safetyGuardSupported -> null
+            !safetyGuardEnabled -> "Guard OFF"
+            (safetyGainMilliDb ?: 0) <= -50 ->
+                "Guard ${String.format(java.util.Locale.US, "%.1f", (safetyGainMilliDb ?: 0) / 1000.0)} dB"
+            else -> "Guard ON"
+        }
 
         val engineState = when {
             sessionEntries.isEmpty() -> "Idle"
@@ -347,6 +389,7 @@ object OnePlus13Diagnostics {
                 append(" · ${sampleRates.joinToString("/")} Hz")
             }
             append(" · $overloadLabel")
+            safetyLabel?.let { append(" · $it") }
             append(" · ${sessionEntries.size} session")
             if (sessionEntries.size != 1) append('s')
         }
@@ -411,6 +454,10 @@ object OnePlus13Diagnostics {
             appendLine("maxProcessUs=${maxProcessUs ?: "unsupported"}")
             appendLine("processedFrames=${processedFrames ?: "unsupported"}")
             appendLine("processedBlocks=${processedBlocks ?: "unsupported"}")
+            appendLine("safetyGuardSupported=$safetyGuardSupported")
+            appendLine("safetyGuardEnabled=${if (safetyGuardSupported) safetyGuardEnabled else "unsupported"}")
+            appendLine("safetyGainMilliDb=${safetyGainMilliDb ?: "unsupported"}")
+            appendLine("clipEvents=${clipEvents ?: "unsupported"}")
             appendLine("controlProbeUs=${controlProbeUs ?: "unknown"}")
             appendLine("overloadDetected=$overloadDetected")
             appendLine("oplusAudioPresent=$oplusPresent")
@@ -441,6 +488,9 @@ object OnePlus13Diagnostics {
         val maxProcessUs: Int?,
         val frames: Int?,
         val blocks: Int?,
+        val safetyGuardEnabled: Boolean?,
+        val safetyGainMilliDb: Int?,
+        val clipEvents: Int?,
         val probeUs: Int,
     )
 }

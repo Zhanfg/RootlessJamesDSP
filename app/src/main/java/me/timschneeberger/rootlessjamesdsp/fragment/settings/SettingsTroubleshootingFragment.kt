@@ -120,8 +120,11 @@ class SettingsTroubleshootingFragment : SettingsBaseFragment() {
 
             if (BuildConfig.ONEPLUS13) {
                 val o13 = OnePlus13Diagnostics.collect(requireContext(), routingObserver)
+                val decoder = OnePlus13DecoderDiagnostics.collect()
                 writer.write("\n")
                 writer.write(o13.report)
+                writer.write("\n")
+                writer.write(decoder.report)
                 writer.write("\n")
             }
 

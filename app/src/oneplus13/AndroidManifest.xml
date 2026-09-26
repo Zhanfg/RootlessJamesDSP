@@ -37,6 +37,10 @@
             android:name="firebase_crashlytics_collection_enabled"
             tools:node="remove" />
 
+        <meta-data
+            android:name="moe.shizuku.client.V3_SUPPORT"
+            tools:node="remove" />
+
         <activity
             android:name=".activity.OnboardingActivity"
             tools:node="remove" />

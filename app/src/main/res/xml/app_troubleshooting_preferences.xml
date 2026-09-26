@@ -1,6 +1,60 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
+
+    <PreferenceCategory
+        android:key="oneplus13_audio_chain_category"
+        app:title="@string/oneplus13_audio_chain_header"
+        app:iconSpaceReserved="false">
+        <Preference
+            android:key="@string/key_oneplus13_audio_chain_status"
+            android:title="@string/oneplus13_audio_chain_status"
+            android:summary="@string/oneplus13_audio_chain_status_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/key_oneplus13_sessions"
+            android:title="@string/oneplus13_sessions"
+            android:summary="@string/oneplus13_sessions_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/key_oneplus13_capabilities"
+            android:title="@string/oneplus13_capabilities"
+            android:summary="@string/oneplus13_capabilities_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/key_oneplus13_decoder_status"
+            android:title="@string/oneplus13_decoder_status"
+            android:summary="@string/oneplus13_decoder_status_summary"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            app:key="@string/key_oneplus13_decoder_routing"
+            app:title="@string/oneplus13_decoder_routing"
+            app:summary="@string/oneplus13_decoder_routing_summary"
+            app:entries="@array/oneplus13_decoder_routing_modes"
+            app:entryValues="@array/oneplus13_decoder_routing_values"
+            app:defaultValue="@string/default_oneplus13_decoder_routing"
+            app:useSimpleSummaryProvider="true"
+            app:iconSpaceReserved="false" />
+        <me.timschneeberger.rootlessjamesdsp.preference.DropDownPreference
+            app:key="@string/key_oneplus13_decoder_source"
+            app:title="@string/oneplus13_decoder_source"
+            app:summary="@string/oneplus13_decoder_source_summary"
+            app:defaultValue="@string/default_oneplus13_decoder_source"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/key_oneplus13_engine_resync"
+            android:title="@string/oneplus13_engine_resync"
+            android:summary="@string/oneplus13_engine_resync_summary"
+            app:iconSpaceReserved="false" />
+        <me.timschneeberger.rootlessjamesdsp.preference.MaterialSwitchPreference
+            app:key="@string/key_oneplus13_safety_guard"
+            app:title="@string/oneplus13_safety_guard"
+            app:defaultValue="@bool/default_oneplus13_safety_guard"
+            app:summaryOn="@string/oneplus13_safety_guard_on"
+            app:summaryOff="@string/oneplus13_safety_guard_off"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/troubleshooting_docs"
         app:iconSpaceReserved="false">
         <Preference

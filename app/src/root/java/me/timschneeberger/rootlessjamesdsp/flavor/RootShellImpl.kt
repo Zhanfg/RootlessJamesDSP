@@ -33,4 +33,18 @@ object RootShellImpl {
             isSuccess
         }
     }
+
+    fun exec(command: String): String {
+        Timber.d("root command (capture): $command")
+        return Shell.cmd(command).exec().run {
+            if(!isSuccess) {
+                Timber.e("Command failed; error $code")
+                err.forEach(Timber::e)
+            }
+            buildList {
+                addAll(out)
+                addAll(err.map { "[stderr] $it" })
+            }.joinToString("\n")
+        }
+    }
 }

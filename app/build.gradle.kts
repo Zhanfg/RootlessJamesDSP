@@ -13,7 +13,11 @@ plugins {
 
 android {
 
-    val SUPPORTED_ABIS = setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+    val ONEPLUS13_BUILD = providers.gradleProperty("oneplus13").orNull == "true"
+    val SUPPORTED_ABIS = if (ONEPLUS13_BUILD)
+        setOf("arm64-v8a")
+    else
+        setOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
     compileSdk = AndroidConfig.compileSdk
     project.setProperty("archivesBaseName", "RootlessJamesDSP-v${AndroidConfig.versionName}")
 
@@ -31,6 +35,7 @@ android {
         buildConfigField("String", "BUILD_TIME", "\"${getBuildTime()}\"")
         buildConfigField("boolean", "PREVIEW", "false")
         buildConfigField("boolean", "PLUGIN", "false")
+        buildConfigField("boolean", "ONEPLUS13", "false")
 
         externalNativeBuild {
             cmake {
@@ -69,6 +74,19 @@ android {
             val debugType = getByName("debug")
             versionNameSuffix = debugType.versionNameSuffix
             matchingFallbacks.add("release")
+        }
+
+        create("oneplus13") {
+            initWith(getByName("release"))
+            matchingFallbacks.add("release")
+            buildConfigField("boolean", "ONEPLUS13", "true")
+            // Dedicated OnePlus 13 controller: module/engine updates are handled
+            // separately and this F-Droid variant must not publish telemetry.
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = "false"
+            configure<CrashlyticsExtension> {
+                nativeSymbolUploadEnabled = false
+                mappingFileUploadEnabled = false
+            }
         }
     }
 
@@ -252,9 +270,11 @@ dependencies {
     debugImplementation("com.plutolib:pluto:2.0.9")
     "previewImplementation"("com.plutolib:pluto-no-op:2.0.9")
     releaseImplementation("com.plutolib:pluto-no-op:2.0.9")
+    "oneplus13Implementation"("com.plutolib:pluto-no-op:2.0.9")
     debugImplementation("com.plutolib.plugins:bundle-core:2.0.9")
     "previewImplementation"("com.plutolib.plugins:bundle-core-no-op:2.0.9")
     releaseImplementation("com.plutolib.plugins:bundle-core-no-op:2.0.9")
+    "oneplus13Implementation"("com.plutolib.plugins:bundle-core-no-op:2.0.9")
 
     // Unit tests
     testImplementation("junit:junit:4.13.2")

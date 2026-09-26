@@ -716,4 +716,47 @@ Tap on \'Tutorial\' below for detailed instructions.</string>
     <string name="android_15_screenshare_keyguard_warning">Android 15 introduces a restriction that stops screen sharing when the device is locked. To workaround this issue, the \'PROJECT_MEDIA\' permission must be granted using Shizuku or ADB.
 
 Please press \'Continue\' below to re-do the setup wizard.</string>
+    <!-- OnePlus 13 / Android 16 -->
+    <string name="key_oneplus13_audio_chain_status">oneplus13_audio_chain_status</string>
+    <string name="key_oneplus13_engine_resync">oneplus13_engine_resync</string>
+    <string name="oneplus13_audio_chain_header">OnePlus 13 audio chain</string>
+    <string name="oneplus13_audio_chain_status">Live audio-chain status</string>
+    <string name="oneplus13_audio_chain_status_summary">Check the AIDL driver, active sessions, sample rate, current route, QTI audio services and OPlus/Dolby coexistence.</string>
+    <string name="oneplus13_audio_chain_dialog_title">OnePlus 13 audio-chain status</string>
+    <string name="oneplus13_engine_resync">Restart and resync JamesDSP</string>
+    <string name="oneplus13_engine_resync_summary">Recreate active JamesDSP effects and immediately re-apply the complete preset.</string>
+    <string name="oneplus13_engine_resync_done">JamesDSP restart/resync requested.</string>
+
+    <string name="key_oneplus13_safety_guard">oneplus13_safety_guard</string>
+    <string name="oneplus13_safety_guard">Adaptive headroom guard</string>
+    <string name="oneplus13_safety_guard_on">Protect final output from full-scale overload without changing the saved preset.</string>
+    <string name="oneplus13_safety_guard_off">Disabled. The saved DSP chain is used without the O13 runtime safety layer.</string>
+    <string name="oneplus13_safety_guard_compat">Available only when the active driver exposes the OnePlus 13 safety extension; compatible drivers continue to work normally.</string>
+
+    <string name="key_oneplus13_sessions">oneplus13_sessions</string>
+    <string name="key_oneplus13_capabilities">oneplus13_capabilities</string>
+    <string name="oneplus13_sessions">Active processing sessions</string>
+    <string name="oneplus13_sessions_summary">Show each app/session currently attached to JamesDSP and its live engine state.</string>
+    <string name="oneplus13_sessions_dialog_title">Active JamesDSP sessions</string>
+    <string name="oneplus13_capabilities">Driver capability matrix</string>
+    <string name="oneplus13_capabilities_summary">Show which standard and OnePlus 13 extensions are available with the current driver.</string>
+    <string name="oneplus13_capabilities_dialog_title">JamesDSP driver capabilities</string>
+
+    <string name="key_oneplus13_decoder_status">oneplus13_decoder_status</string>
+    <string name="key_oneplus13_decoder_routing">oneplus13_decoder_routing</string>
+    <string name="oneplus13_decoder_status">Decoder / Codec2 status</string>
+    <string name="oneplus13_decoder_status_summary">Inspect audio decoders, active Codec2 components, and offload/direct playback paths.</string>
+    <string name="oneplus13_decoder_dialog_title">OnePlus 13 decoder stack</string>
+    <string name="oneplus13_decoder_routing">Decoder routing</string>
+    <string name="oneplus13_decoder_routing_auto">Auto / native offload</string>
+    <string name="oneplus13_decoder_routing_dsp">Prefer DSP-compatible PCM</string>
+    <string name="oneplus13_decoder_routing_summary">Auto keeps the device’s native decoder/offload policy. DSP-compatible mode temporarily disables compress offload while JamesDSP is processing so decoded PCM can return through AudioFlinger effects.</string>
+
+    <string name="key_oneplus13_decoder_source">oneplus13_decoder_source</string>
+    <string name="oneplus13_decoder_source">Mounted decoder source</string>
+    <string name="oneplus13_decoder_source_summary">Select a packaged or external Codec2 decoder source. Only verified payloads can be activated.</string>
+    <string name="oneplus13_decoder_source_none">Stock decoders only</string>
+    <string name="oneplus13_decoder_source_reboot">Decoder source staged successfully. Reboot is required.</string>
+    <string name="oneplus13_decoder_source_failed">Decoder source change failed</string>
+
 </resources>

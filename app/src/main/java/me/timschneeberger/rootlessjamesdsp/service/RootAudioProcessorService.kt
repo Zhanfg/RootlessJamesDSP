@@ -16,6 +16,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -31,6 +32,7 @@ import me.timschneeberger.rootlessjamesdsp.model.room.BlockedApp
 import me.timschneeberger.rootlessjamesdsp.session.root.OnRootSessionChangeListener
 import me.timschneeberger.rootlessjamesdsp.session.root.RootSessionDumpManager
 import me.timschneeberger.rootlessjamesdsp.utils.Constants
+import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13DecoderRouting
 import me.timschneeberger.rootlessjamesdsp.utils.extensions.ContextExtensions.sendLocalBroadcast
 import me.timschneeberger.rootlessjamesdsp.utils.notifications.Notifications
 import me.timschneeberger.rootlessjamesdsp.utils.notifications.ServiceNotificationHelper
@@ -49,14 +51,36 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
 
     private val audioPlaybackCallback = object : AudioManager.AudioPlaybackCallback() {
         override fun onPlaybackConfigChanged(configs: MutableList<AudioPlaybackConfiguration>?) {
-            app.rootSessionDatabase.sessionList.values.forEach { session ->
-                (session as? RemoteEffectSession)?.effect?.reloadConvolverIfSampleRateChanged()
+            fun refreshSessions() {
+                app.rootSessionDatabase.sessionList.values.forEach { session ->
+                    val effect = (session as? RemoteEffectSession)?.effect ?: return@forEach
+                    if (BuildConfig.ONEPLUS13)
+                        effect.refreshAfterRouteChange()
+                    else
+                        effect.reloadConvolverIfSampleRateChanged()
+                }
+            }
+
+            refreshSessions()
+
+            if (BuildConfig.ONEPLUS13) {
+                // ColorOS may emit playback callbacks before the final SM8750
+                // route/sample-rate settles. Debounce and verify twice more
+                // instead of trusting the first transient configuration.
+                routeResyncJob?.cancel()
+                routeResyncJob = MainScope().launch {
+                    delay(350)
+                    refreshSessions()
+                    delay(1000)
+                    refreshSessions()
+                }
             }
         }
     }
 
     // Termination flags
     private var isServiceDisposing = false
+    private var routeResyncJob: Job? = null
 
     // Enhanced processing
     private var sessionDumpManager: RootSessionDumpManager? = null
@@ -124,7 +148,12 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
         }
 
         // Initialize shared preferences manually
-        arrayOf(R.string.key_powered_on, R.string.key_audioformat_enhanced_processing).forEach {
+        arrayOf(
+            R.string.key_powered_on,
+            R.string.key_audioformat_enhanced_processing,
+            R.string.key_oneplus13_safety_guard,
+            R.string.key_oneplus13_decoder_routing,
+        ).forEach {
             onSharedPreferenceChanged(preferences.preferences, getString(it))
         }
     }
@@ -190,6 +219,15 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
         // Unregister database observer
         blockedApps.removeObserver(blockedAppObserver)
         audioManager.unregisterAudioPlaybackCallback(audioPlaybackCallback)
+        routeResyncJob?.cancel()
+        routeResyncJob = null
+        if (BuildConfig.ONEPLUS13) {
+            OnePlus13DecoderRouting.apply(
+                this,
+                OnePlus13DecoderRouting.MODE_AUTO,
+                processingEnabled = false,
+            )
+        }
 
         // Notify app about service termination and unregister
         sendLocalBroadcast(Intent(Constants.ACTION_SERVICE_STOPPED))
@@ -205,8 +243,17 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
     override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
         when (key) {
             getString(R.string.key_audioformat_processing) -> { updateServiceNotification() }
+            getString(R.string.key_oneplus13_safety_guard) -> {
+                applyOnePlus13SafetyGuard()
+            }
+            getString(R.string.key_oneplus13_decoder_routing) -> {
+                applyOnePlus13DecoderRouting()
+            }
             getString(R.string.key_powered_on) -> {
                 app.rootSessionDatabase.enabled = sharedPreferences?.getBoolean(key, true) ?: true
+                if (BuildConfig.ONEPLUS13) {
+                    applyOnePlus13DecoderRouting()
+                }
                 updateServiceNotification()
             }
             getString(R.string.key_audioformat_enhanced_processing) -> {
@@ -235,6 +282,45 @@ class RootAudioProcessorService : BaseAudioProcessorService(), KoinComponent,
 
     override fun onSessionChanged(sessionList: HashMap<Int, IEffectSession>) {
         updateServiceNotification()
+        applyOnePlus13SafetyGuard()
+    }
+
+    private fun applyOnePlus13SafetyGuard() {
+        if (!BuildConfig.ONEPLUS13) return
+
+        val enabled = preferences.get<Boolean>(R.string.key_oneplus13_safety_guard)
+        var supported = 0
+        app.rootSessionDatabase.sessionList.values.forEach { session ->
+            val effect = (session as? RemoteEffectSession)?.effect ?: return@forEach
+            if (effect.setSafetyGuardEnabled(enabled)) {
+                supported++
+            }
+        }
+        Timber.d(
+            "O13 Safety Guard requested=%s; supported sessions=%d/%d",
+            enabled,
+            supported,
+            app.rootSessionDatabase.sessionList.size,
+        )
+    }
+
+    private fun applyOnePlus13DecoderRouting() {
+        if (!BuildConfig.ONEPLUS13) return
+
+        val mode = preferences.get<String>(R.string.key_oneplus13_decoder_routing)
+        val powered = preferences.get<Boolean>(R.string.key_powered_on)
+        val result = OnePlus13DecoderRouting.apply(
+            this,
+            mode,
+            processingEnabled = powered,
+        )
+        Timber.i(
+            "O13 decoder routing: mode=%s powered=%s success=%s current=%s",
+            mode,
+            powered,
+            result.success,
+            result.currentValue,
+        )
     }
 
     private fun updateServiceNotification() {

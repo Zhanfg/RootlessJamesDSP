@@ -417,4 +417,14 @@
         <item>spl0</item>
         <item>spl1</item>
     </string-array>
+    <string-array name="oneplus13_decoder_routing_modes" translatable="false">
+        <item>@string/oneplus13_decoder_routing_auto</item>
+        <item>@string/oneplus13_decoder_routing_dsp</item>
+    </string-array>
+
+    <string-array name="oneplus13_decoder_routing_values" translatable="false">
+        <item>auto</item>
+        <item>dsp</item>
+    </string-array>
+
 </resources>

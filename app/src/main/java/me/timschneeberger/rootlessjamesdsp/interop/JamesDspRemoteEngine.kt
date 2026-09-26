@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.AudioEffectHidden
+import me.timschneeberger.rootlessjamesdsp.BuildConfig
 import me.timschneeberger.rootlessjamesdsp.MainApplication
 import me.timschneeberger.rootlessjamesdsp.interop.structure.EelVmVariable
 import me.timschneeberger.rootlessjamesdsp.utils.Constants
@@ -32,6 +33,7 @@ class JamesDspRemoteEngine(
 ) : JamesDspBaseEngine(context, callbacks) {
 
     private var convolverSampleRate = 0
+    private var requestedSafetyGuard: Boolean? = null
 
     private val broadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -39,7 +41,12 @@ class JamesDspRemoteEngine(
                 Constants.ACTION_SAMPLE_RATE_UPDATED -> syncWithPreferences(arrayOf(Constants.PREF_CONVOLVER))
                 Constants.ACTION_PREFERENCES_UPDATED -> syncWithPreferences()
                 Constants.ACTION_SERVICE_RELOAD_LIVEPROG -> syncWithPreferences(arrayOf(Constants.PREF_LIVEPROG))
-                Constants.ACTION_SERVICE_HARD_REBOOT_CORE -> rebootEngine()
+                Constants.ACTION_SERVICE_HARD_REBOOT_CORE -> {
+                    rebootEngine()
+                    // Recreated native effects start from defaults. A hard
+                    // recovery must immediately restore the complete preset.
+                    syncWithPreferences(ALL_PREF_NAMESPACES)
+                }
                 Constants.ACTION_SERVICE_SOFT_REBOOT_CORE -> { clearCache(); syncWithPreferences() }
             }
         }
@@ -53,7 +60,7 @@ class JamesDspRemoteEngine(
 
     override var sampleRate: Float
         get() {
-            super.sampleRate = effect.getParameterInt(20001)?.toFloat() ?: -0f
+            sampleRateOrNull?.let { super.sampleRate = it.toFloat() }
             return super.sampleRate
         }
         set(_){}
@@ -72,7 +79,18 @@ class JamesDspRemoteEngine(
 
     private fun createEffect(): AudioEffectHidden {
         return try {
-            AudioEffectHidden(EFFECT_TYPE_CUSTOM, EFFECT_JAMESDSP, priority, sessionId)
+            // Prefer the registered descriptor's actual type UUID. Several
+            // JamesDSP forks keep the implementation UUID stable while using a
+            // different custom type; hard-coding our O13 type would needlessly
+            // reject an otherwise compatible driver.
+            val registeredType = runCatching {
+                AudioEffect.queryEffects()
+                    .orEmpty()
+                    .firstOrNull { it.uuid == EFFECT_JAMESDSP }
+                    ?.type
+            }.getOrNull() ?: EFFECT_TYPE_CUSTOM
+
+            AudioEffectHidden(registeredType, EFFECT_JAMESDSP, priority, sessionId)
         } catch (e: Exception) {
             Timber.e("Failed to create JamesDSP effect")
             Timber.e(e)
@@ -80,24 +98,38 @@ class JamesDspRemoteEngine(
         }
     }
 
-    private fun checkEngine() {
-        if (!isPidValid) {
-            Timber.e("PID ($pid) for session $sessionId invalid. Engine probably crashed or detached.")
+    private fun checkEngine(): Boolean {
+        var rebooted = false
+
+        val pidProbe = pidOrNull
+        val sampleRateProbe = sampleRateOrNull
+
+        if (pidProbe != null && pidProbe <= 0) {
+            Timber.e("PID ($pidProbe) for session $sessionId invalid. Engine probably crashed or detached.")
             context.toast("Engine crashed. Rebooting JamesDSP.", false)
             rebootEngine()
-        }
-
-        if (isSampleRateAbnormal) {
-            Timber.e("PID ($pid) for session $sessionId invalid. Engine crashed.")
+            rebooted = true
+        } else if (sampleRateProbe != null && sampleRateProbe <= 0) {
+            Timber.e("Sample rate ($sampleRateProbe) for session $sessionId invalid.")
             context.toast("Abnormal sampling rate. Rebooting JamesDSP.", false)
             rebootEngine()
+            rebooted = true
+        } else if (pidProbe == null && sampleRateProbe == null) {
+            // Compatible/legacy drivers are allowed to omit health-probe
+            // parameters. Absence means "capability unavailable", not crash.
+            Timber.v("Driver exposes no PID/sample-rate health probes; skipping auto-reboot check")
         }
+
+        return rebooted
     }
 
     private fun rebootEngine() {
         try {
             effect?.release()
             effect = createEffect()
+            requestedSafetyGuard?.let { desired ->
+                setSafetyGuardEnabled(desired)
+            }
         }
         catch (ex: IllegalStateException) {
             Timber.e("Failed to re-instantiate JamesDSP effect")
@@ -113,8 +145,8 @@ class JamesDspRemoteEngine(
             return
         }
 
-        checkEngine()
-        super.syncWithPreferences(forceUpdateNamespaces)
+        val namespaces = if (checkEngine()) ALL_PREF_NAMESPACES else forceUpdateNamespaces
+        super.syncWithPreferences(namespaces)
     }
 
     override fun close() {
@@ -247,6 +279,20 @@ class JamesDspRemoteEngine(
         }
     }
 
+    /**
+     * OnePlus 13 route changes can transiently detach/reconfigure an AIDL effect.
+     * Revalidate the native instance after the route settles; rebuild + restore
+     * the full preset only when the PID/sample-rate probe is unhealthy.
+     */
+    fun refreshAfterRouteChange() {
+        if (checkEngine()) {
+            Timber.w("Route change invalidated JamesDSP; restoring full DSP state")
+            super.syncWithPreferences(ALL_PREF_NAMESPACES)
+        } else {
+            reloadConvolverIfSampleRateChanged()
+        }
+    }
+
     override fun setGraphicEqInternal(enable: Boolean, bands: String): Boolean {
         val prevCrc = this.graphicEqHash
         val currentCrc = bands.crc()
@@ -283,12 +329,18 @@ class JamesDspRemoteEngine(
     override fun freezeLiveprogExecution(freeze: Boolean) {}
 
     // Status
+    val pidOrNull: Int?
+        get() = effect.getParameterInt(20002)
+    val sampleRateOrNull: Int?
+        get() = effect.getParameterInt(20001)
     val pid: Int
-        get() = effect.getParameterInt(20002) ?: -1
+        get() = pidOrNull ?: -1
     val isPidValid: Boolean
-        get() = pid > 0
+        get() = pidOrNull?.let { it > 0 } ?: true
     val isSampleRateAbnormal: Boolean
-        get() = sampleRate <= 0
+        get() = sampleRateOrNull?.let { it <= 0 } ?: false
+    val supportsHealthProbe: Boolean
+        get() = pidOrNull != null || sampleRateOrNull != null
     val paramCommitCount: Int
         get() = effect.getParameterInt(19998) ?: -1
     val isPresetInitialized: Boolean
@@ -306,9 +358,40 @@ class JamesDspRemoteEngine(
     val convolverHash: Int
         get() = effect.getParameterInt(30003) ?: -1
 
+    // Optional OnePlus 13 telemetry extension. Legacy/generic drivers are
+    // expected to return null for unsupported parameter ids.
+    val peakMilliDb: Int?
+        get() = effect.getParameterInt(20010)
+    val clippedSamples: Int?
+        get() = effect.getParameterInt(20011)
+    val lastProcessUs: Int?
+        get() = effect.getParameterInt(20012)
+    val maxProcessUs: Int?
+        get() = effect.getParameterInt(20013)
+    val lastProcessedFrames: Int?
+        get() = effect.getParameterInt(20014)
+    val processedBlocks: Int?
+        get() = effect.getParameterInt(20015)
+    val safetyGuardEnabled: Boolean?
+        get() = effect.getParameterInt(20016)?.let { it != 0 }
+    val safetyGainMilliDb: Int?
+        get() = effect.getParameterInt(20017)
+    val clipEvents: Int?
+        get() = effect.getParameterInt(20018)
+    val supportsSafetyGuard: Boolean
+        get() = safetyGuardEnabled != null && safetyGainMilliDb != null
+
+    fun setSafetyGuardEnabled(enable: Boolean): Boolean {
+        requestedSafetyGuard = enable
+        return effect.setParameter(1600, enable.toShort()) == AudioEffect.SUCCESS
+    }
+    val supportsOnePlus13Telemetry: Boolean
+        get() = peakMilliDb != null && processedBlocks != null
+
     enum class PluginState {
         Unavailable,
         Available,
+        Compatible,
         Unsupported
     }
 
@@ -316,15 +399,54 @@ class JamesDspRemoteEngine(
         private val EFFECT_TYPE_CUSTOM = UUID.fromString("f98765f4-c321-5de6-9a45-123459495ab2")
         private val EFFECT_JAMESDSP = UUID.fromString("f27317f4-c984-4de6-9a90-545759495bf2")
 
+        /**
+         * A recreated AudioEffect starts from native defaults. Re-push every namespace after
+         * an engine crash/rebind so the Java-side preference cache cannot leave the DSP partially
+         * reset while the UI still shows the previous preset.
+         */
+        private val ALL_PREF_NAMESPACES = arrayOf(
+            Constants.PREF_OUTPUT,
+            Constants.PREF_COMPANDER,
+            Constants.PREF_BASS,
+            Constants.PREF_EQ,
+            Constants.PREF_GEQ,
+            Constants.PREF_PEQ,
+            Constants.PREF_REVERB,
+            Constants.PREF_STEREOWIDE,
+            Constants.PREF_CROSSFEED,
+            Constants.PREF_TUBE,
+            Constants.PREF_DDC,
+            Constants.PREF_LIVEPROG,
+            Constants.PREF_CONVOLVER,
+        )
+
+        internal fun classifyPluginName(
+            name: String,
+            onePlus13Build: Boolean = BuildConfig.ONEPLUS13,
+        ): PluginState {
+            return when {
+                // Known legacy protocol generation that this client cannot
+                // safely drive. This remains blocked in every build.
+                name.contains("v3", ignoreCase = true) -> PluginState.Unsupported
+
+                // On the O13 build, another JamesDSP implementation sharing
+                // the standard effect UUID is usable in compatibility mode.
+                onePlus13Build &&
+                    !name.contains("OnePlus13", ignoreCase = true) ->
+                    PluginState.Compatible
+
+                else -> PluginState.Available
+            }
+        }
+
         fun isPluginInstalled(): PluginState {
             return try {
                 AudioEffect
                     .queryEffects()
                     .orEmpty()
                     .firstOrNull { it.uuid == EFFECT_JAMESDSP }
-                    ?.run {
-                        if(name.contains("v3")) PluginState.Unsupported else PluginState.Available
-                    } ?: PluginState.Unavailable
+                    ?.run { classifyPluginName(name) }
+                    ?: PluginState.Unavailable
             } catch (e: Exception) {
                 Timber.e("isPluginInstalled: exception raised")
                 Timber.e(e)

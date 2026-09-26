@@ -288,7 +288,8 @@ class MainActivity : BaseActivity() {
                 }
                 else if (isRoot()) {
                     when(JamesDspRemoteEngine.isPluginInstalled()) {
-                        JamesDspRemoteEngine.PluginState.Available -> {
+                        JamesDspRemoteEngine.PluginState.Available,
+                        JamesDspRemoteEngine.PluginState.Compatible -> {
                             binding.powerToggle.isToggled = !binding.powerToggle.isToggled
                             prefsApp.set(R.string.key_powered_on, binding.powerToggle.isToggled)
                         }
@@ -332,6 +333,9 @@ class MainActivity : BaseActivity() {
         if(isRoot()) {
             when(JamesDspRemoteEngine.isPluginInstalled()) {
                 JamesDspRemoteEngine.PluginState.Unavailable -> showLibraryLoadError()
+                JamesDspRemoteEngine.PluginState.Compatible -> {
+                    Timber.w("Using compatible JamesDSP driver; OnePlus 13 extras may be limited")
+                }
                 JamesDspRemoteEngine.PluginState.Unsupported -> {
                     prefsApp.set(R.string.key_powered_on, false)
                     showYesNoAlert(
@@ -385,9 +389,16 @@ class MainActivity : BaseActivity() {
 
         showAndroid15Alert()
 
-        dspFragment.setUpdateCardOnClick { updateManager.installUpdate(this) }
-        dspFragment.setUpdateCardOnCloseClick(::dismissUpdate)
-        checkForUpdates()
+        if (!BuildConfig.ONEPLUS13) {
+            dspFragment.setUpdateCardOnClick { updateManager.installUpdate(this) }
+            dspFragment.setUpdateCardOnCloseClick(::dismissUpdate)
+            checkForUpdates()
+        } else {
+            // The OnePlus 13 controller is version-matched with the systemless
+            // AIDL engine. Never offer a generic upstream APK that could replace
+            // this device-specific controller with an incompatible build.
+            dspFragment.setUpdateCardVisible(false)
+        }
 
         // Handle potential incoming file intent
         if(intent?.action == Intent.ACTION_VIEW) {
@@ -501,6 +512,11 @@ class MainActivity : BaseActivity() {
     }
 
     private fun checkForUpdates() {
+        if(BuildConfig.ONEPLUS13) {
+            Timber.d("Update check disabled for OnePlus 13 system-AIDL controller")
+            return
+        }
+
         if(!isRoot() ||
             prefsVar.get<Long>(R.string.key_update_check_timeout) > (System.currentTimeMillis() / 1000L)) {
             Timber.d("Update check rejected due to flavor or timeout")
@@ -544,7 +560,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun dismissUpdate() {
-        if(!isRoot())
+        if(BuildConfig.ONEPLUS13 || !isRoot())
             return
 
         MaterialAlertDialogBuilder(this)

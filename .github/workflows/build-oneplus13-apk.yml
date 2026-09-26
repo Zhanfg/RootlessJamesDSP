@@ -1,0 +1,159 @@
+name: Build OnePlus 13 JamesDSP APK
+
+on:
+  push:
+    branches: [ oneplus-integration ]
+    paths:
+      - 'app/**'
+      - 'codeview/**'
+      - 'hidden-api-*/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '.github/workflows/build-oneplus13-apk.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: oneplus13-jdsp-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: gradle
+
+      - name: Prepare Gradle wrapper
+        run: chmod +x ./gradlew
+
+      - name: Test OnePlus 13 compatibility policy
+        run: |
+          ./gradlew testRootFdroidOneplus13UnitTest \
+            -Poneplus13=true \
+            --no-daemon \
+            --stacktrace
+
+      - name: Build OnePlus 13 root controller
+        run: |
+          ./gradlew assembleRootFdroidOneplus13             -Poneplus13=true             --no-daemon             --stacktrace
+
+      - name: Collect arm64 APK
+        run: |
+          set -eux
+          mkdir -p build/o13-apk
+          find app/build/outputs/apk -type f -name '*.apk' -print
+
+          ARM64="$(find app/build/outputs/apk -type f             -path '*/rootFdroid/oneplus13/*'             -name '*arm64-v8a*.apk' | sort | head -1)"
+          UNIVERSAL="$(find app/build/outputs/apk -type f             -path '*/rootFdroid/oneplus13/*'             -name '*universal*.apk' | sort | head -1)"
+
+          [ -n "$ARM64" ] && [ -s "$ARM64" ]
+          cp "$ARM64" build/o13-apk/JamesDSP-OnePlus13-Android16-arm64.apk
+
+          if [ -n "$UNIVERSAL" ] && [ -s "$UNIVERSAL" ]; then
+            cp "$UNIVERSAL" build/o13-apk/JamesDSP-OnePlus13-Android16-universal.apk
+          fi
+
+          sha256sum build/o13-apk/*.apk | tee build/o13-apk/SHA256SUMS
+
+      - name: Audit APK contents
+        run: |
+          python3 - <<'PY'
+          import pathlib, zipfile, sys
+
+          apk = pathlib.Path('build/o13-apk/JamesDSP-OnePlus13-Android16-arm64.apk')
+          with zipfile.ZipFile(apk) as z:
+              names = z.namelist()
+              libs = [n for n in names if n.startswith('lib/') and n.endswith('.so')]
+              abis = sorted({n.split('/')[1] for n in libs})
+              print('APK bytes:', apk.stat().st_size)
+              print('ABIs:', abis)
+              print('Native libs:')
+              for n in libs:
+                  print(' ', n)
+              for prefix in ('assets/Convolver/', 'assets/DDC/', 'assets/Liveprog/'):
+                  print(prefix, sum(n.startswith(prefix) for n in names))
+
+              if abis != ['arm64-v8a']:
+                  raise SystemExit(f'Unexpected ABI set: {abis}')
+
+              forbidden = [
+                  'lib/armeabi-v7a/',
+                  'lib/x86/',
+                  'lib/x86_64/',
+                  'libcrashlytics-handler.so',
+                  'libcrashlytics.so',
+              ]
+              bad = [n for n in names if any(x in n for x in forbidden)]
+              if bad:
+                  print('Unexpected generic/full-build payload:', *bad, sep='\n  ')
+                  raise SystemExit(1)
+
+              required_assets = (
+                  'assets/Convolver/Church.wav',
+                  'assets/DDC/Butterworth.vdc',
+                  'assets/Liveprog/3bandSplitting.eel',
+              )
+              missing = [x for x in required_assets if x not in names]
+              if missing:
+                  raise SystemExit(f'Missing JamesDSP assets: {missing}')
+          PY
+
+      - name: Audit merged manifest and permissions
+        run: |
+          APK=build/o13-apk/JamesDSP-OnePlus13-Android16-arm64.apk
+          AAPT="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -1)"
+          [ -x "$AAPT" ]
+
+          "$AAPT" dump badging "$APK" | tee build/o13-apk/BADGING.txt
+          "$AAPT" dump permissions "$APK" | tee build/o13-apk/PERMISSIONS.txt
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml | tee build/o13-apk/MANIFEST.txt
+
+          grep -q "package: name='james.dsp'" build/o13-apk/BADGING.txt
+
+          for forbidden in             android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION             android.permission.RECORD_AUDIO             android.permission.SYSTEM_ALERT_WINDOW             android.permission.REQUEST_INSTALL_PACKAGES             android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION             moe.shizuku.manager.permission.API_V23; do
+            if grep -q "$forbidden" build/o13-apk/PERMISSIONS.txt; then
+              echo "Forbidden OnePlus13 permission leaked into APK: $forbidden"
+              exit 1
+            fi
+          done
+
+          for forbidden_component in             RootlessAudioProcessorService             ShizukuProvider             OnboardingActivity             SessionInstallerService; do
+            if grep -q "$forbidden_component" build/o13-apk/MANIFEST.txt; then
+              echo "Forbidden OnePlus13 component leaked into APK: $forbidden_component"
+              exit 1
+            fi
+          done
+
+          if grep -q 'firebase_crashlytics_collection_enabled' build/o13-apk/MANIFEST.txt; then
+            echo "Crashlytics collection metadata leaked into OnePlus13 APK"
+            exit 1
+          fi
+
+          if grep -q 'moe.shizuku.client.V3_SUPPORT' build/o13-apk/MANIFEST.txt; then
+            echo "Shizuku client metadata leaked into OnePlus13 APK"
+            exit 1
+          fi
+
+          echo "== DEX dependency audit =="
+          unzip -p "$APK" 'classes*.dex' | strings > build/o13-apk/DEX_STRINGS.txt
+          if grep -Eqi 'com/google/firebase|firebase/crashlytics|FirebaseCrashlytics|CrashlyticsCore' \
+              build/o13-apk/DEX_STRINGS.txt; then
+            echo "Firebase/Crashlytics classes leaked into OnePlus13 F-Droid APK"
+            grep -Ei 'firebase|crashlytics' build/o13-apk/DEX_STRINGS.txt | head -80 || true
+            exit 1
+          fi
+
+      - name: Upload controller APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OnePlus13-JamesDSP-Android16-Controller
+          path: build/o13-apk/

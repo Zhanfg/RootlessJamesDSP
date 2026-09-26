@@ -5,8 +5,8 @@
 
 cmake_minimum_required(VERSION 3.22.1)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections -Ofast -ftree-vectorize -DDEBUG")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections -Ofast -ftree-vectorize -DDEBUG")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffunction-sections -fdata-sections -O3 -ftree-vectorize -DDEBUG")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ffunction-sections -fdata-sections -O3 -ftree-vectorize -DDEBUG")
 
 # Declares and names the project.
 project(jamesdsp LANGUAGES C)

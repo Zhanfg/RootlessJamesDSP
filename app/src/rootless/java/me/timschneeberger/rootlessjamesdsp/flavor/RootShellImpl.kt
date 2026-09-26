@@ -10,4 +10,5 @@ object RootShellImpl {
 
     fun getShell(callback: OnShellAttachedCallback) {}
     fun cmd(command: String) = false
+    fun exec(command: String): String = ""
 }

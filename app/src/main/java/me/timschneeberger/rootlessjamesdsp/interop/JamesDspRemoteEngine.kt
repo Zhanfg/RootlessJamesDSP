@@ -59,7 +59,7 @@ class JamesDspRemoteEngine(
 
     override var sampleRate: Float
         get() {
-            super.sampleRate = effect.getParameterInt(20001)?.toFloat() ?: -0f
+            sampleRateOrNull?.let { super.sampleRate = it.toFloat() }
             return super.sampleRate
         }
         set(_){}
@@ -89,16 +89,23 @@ class JamesDspRemoteEngine(
     private fun checkEngine(): Boolean {
         var rebooted = false
 
-        if (!isPidValid) {
-            Timber.e("PID ($pid) for session $sessionId invalid. Engine probably crashed or detached.")
+        val pidProbe = pidOrNull
+        val sampleRateProbe = sampleRateOrNull
+
+        if (pidProbe != null && pidProbe <= 0) {
+            Timber.e("PID ($pidProbe) for session $sessionId invalid. Engine probably crashed or detached.")
             context.toast("Engine crashed. Rebooting JamesDSP.", false)
             rebootEngine()
             rebooted = true
-        } else if (isSampleRateAbnormal) {
-            Timber.e("PID ($pid) for session $sessionId invalid. Engine crashed.")
+        } else if (sampleRateProbe != null && sampleRateProbe <= 0) {
+            Timber.e("Sample rate ($sampleRateProbe) for session $sessionId invalid.")
             context.toast("Abnormal sampling rate. Rebooting JamesDSP.", false)
             rebootEngine()
             rebooted = true
+        } else if (pidProbe == null && sampleRateProbe == null) {
+            // Compatible/legacy drivers are allowed to omit health-probe
+            // parameters. Absence means "capability unavailable", not crash.
+            Timber.v("Driver exposes no PID/sample-rate health probes; skipping auto-reboot check")
         }
 
         return rebooted
@@ -307,12 +314,18 @@ class JamesDspRemoteEngine(
     override fun freezeLiveprogExecution(freeze: Boolean) {}
 
     // Status
+    val pidOrNull: Int?
+        get() = effect.getParameterInt(20002)
+    val sampleRateOrNull: Int?
+        get() = effect.getParameterInt(20001)
     val pid: Int
-        get() = effect.getParameterInt(20002) ?: -1
+        get() = pidOrNull ?: -1
     val isPidValid: Boolean
-        get() = pid > 0
+        get() = pidOrNull?.let { it > 0 } ?: true
     val isSampleRateAbnormal: Boolean
-        get() = sampleRate <= 0
+        get() = sampleRateOrNull?.let { it <= 0 } ?: false
+    val supportsHealthProbe: Boolean
+        get() = pidOrNull != null || sampleRateOrNull != null
     val paramCommitCount: Int
         get() = effect.getParameterInt(19998) ?: -1
     val isPresetInitialized: Boolean

@@ -420,26 +420,33 @@ class JamesDspRemoteEngine(
             Constants.PREF_CONVOLVER,
         )
 
+        internal fun classifyPluginName(
+            name: String,
+            onePlus13Build: Boolean = BuildConfig.ONEPLUS13,
+        ): PluginState {
+            return when {
+                // Known legacy protocol generation that this client cannot
+                // safely drive. This remains blocked in every build.
+                name.contains("v3", ignoreCase = true) -> PluginState.Unsupported
+
+                // On the O13 build, another JamesDSP implementation sharing
+                // the standard effect UUID is usable in compatibility mode.
+                onePlus13Build &&
+                    !name.contains("OnePlus13", ignoreCase = true) ->
+                    PluginState.Compatible
+
+                else -> PluginState.Available
+            }
+        }
+
         fun isPluginInstalled(): PluginState {
             return try {
                 AudioEffect
                     .queryEffects()
                     .orEmpty()
                     .firstOrNull { it.uuid == EFFECT_JAMESDSP }
-                    ?.run {
-                        when {
-                            // Known legacy protocol generation that this client
-                            // cannot safely drive.
-                            name.contains("v3", ignoreCase = true) -> PluginState.Unsupported
-                            // On the O13 build, any other JamesDSP implementation
-                            // sharing the UUID remains usable. Device-specific
-                            // extras are enabled only when capabilities probe OK.
-                            BuildConfig.ONEPLUS13 &&
-                                !name.contains("OnePlus13", ignoreCase = true) ->
-                                PluginState.Compatible
-                            else -> PluginState.Available
-                        }
-                    } ?: PluginState.Unavailable
+                    ?.run { classifyPluginName(name) }
+                    ?: PluginState.Unavailable
             } catch (e: Exception) {
                 Timber.e("isPluginInstalled: exception raised")
                 Timber.e(e)

@@ -102,6 +102,32 @@ jobs:
                   raise SystemExit(f'Missing JamesDSP assets: {missing}')
           PY
 
+      - name: Audit merged manifest and permissions
+        run: |
+          APK=build/o13-apk/JamesDSP-OnePlus13-Android16-arm64.apk
+          AAPT="$(find "$ANDROID_SDK_ROOT/build-tools" -type f -name aapt | sort -V | tail -1)"
+          [ -x "$AAPT" ]
+
+          "$AAPT" dump badging "$APK" | tee build/o13-apk/BADGING.txt
+          "$AAPT" dump permissions "$APK" | tee build/o13-apk/PERMISSIONS.txt
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml | tee build/o13-apk/MANIFEST.txt
+
+          grep -q "package: name='james.dsp'" build/o13-apk/BADGING.txt
+
+          for forbidden in             android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION             android.permission.RECORD_AUDIO             android.permission.SYSTEM_ALERT_WINDOW             android.permission.REQUEST_INSTALL_PACKAGES             android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION; do
+            if grep -q "$forbidden" build/o13-apk/PERMISSIONS.txt; then
+              echo "Forbidden OnePlus13 permission leaked into APK: $forbidden"
+              exit 1
+            fi
+          done
+
+          for forbidden_component in             RootlessAudioProcessorService             ShizukuProvider             OnboardingActivity             SessionInstallerService; do
+            if grep -q "$forbidden_component" build/o13-apk/MANIFEST.txt; then
+              echo "Forbidden OnePlus13 component leaked into APK: $forbidden_component"
+              exit 1
+            fi
+          done
+
       - name: Upload controller APK
         uses: actions/upload-artifact@v4
         with:

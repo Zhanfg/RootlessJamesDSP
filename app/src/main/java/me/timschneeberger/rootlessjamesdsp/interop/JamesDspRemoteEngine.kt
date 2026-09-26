@@ -257,6 +257,20 @@ class JamesDspRemoteEngine(
         }
     }
 
+    /**
+     * OnePlus 13 route changes can transiently detach/reconfigure an AIDL effect.
+     * Revalidate the native instance after the route settles; rebuild + restore
+     * the full preset only when the PID/sample-rate probe is unhealthy.
+     */
+    fun refreshAfterRouteChange() {
+        if (checkEngine()) {
+            Timber.w("Route change invalidated JamesDSP; restoring full DSP state")
+            super.syncWithPreferences(ALL_PREF_NAMESPACES)
+        } else {
+            reloadConvolverIfSampleRateChanged()
+        }
+    }
+
     override fun setGraphicEqInternal(enable: Boolean, bands: String): Boolean {
         val prevCrc = this.graphicEqHash
         val currentCrc = bands.crc()

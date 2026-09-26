@@ -131,6 +131,11 @@ jobs:
             exit 1
           fi
 
+          if grep -q 'moe.shizuku.client.V3_SUPPORT' build/o13-apk/MANIFEST.txt; then
+            echo "Shizuku client metadata leaked into OnePlus13 APK"
+            exit 1
+          fi
+
           echo "== DEX dependency audit =="
           unzip -p "$APK" 'classes*.dex' | strings > build/o13-apk/DEX_STRINGS.txt
           if grep -Eqi 'com/google/firebase|firebase/crashlytics|FirebaseCrashlytics|CrashlyticsCore' \

@@ -481,6 +481,122 @@ object OnePlus13Diagnostics {
         )
     }
 
+    fun collectSessionReport(context: Context): String {
+        val entries = runCatching {
+            MainApplication.instance.rootSessionDatabase.sessionList.entries
+                .mapNotNull { entry ->
+                    (entry.value as? RemoteEffectSession)?.let { entry.key to it }
+                }
+                .sortedBy { it.first }
+        }.getOrDefault(emptyList())
+
+        if (entries.isEmpty()) {
+            return "No active JamesDSP sessions."
+        }
+
+        val pm = context.packageManager
+        return buildString {
+            appendLine("Active sessions: ${entries.size}")
+            entries.forEachIndexed { index, (sessionId, session) ->
+                val label = runCatching {
+                    val info = pm.getApplicationInfo(session.packageName, 0)
+                    pm.getApplicationLabel(info).toString()
+                }.getOrDefault(session.packageName)
+                val engine = session.effect
+
+                appendLine()
+                appendLine("#${index + 1}  $label")
+                appendLine("package=${session.packageName}")
+                appendLine("sessionId=$sessionId")
+                appendLine("uid=${session.uid}")
+                if (engine == null) {
+                    appendLine("engine=detached")
+                } else {
+                    appendLine("pid=${engine.pidOrNull ?: "unsupported"}")
+                    appendLine("sampleRate=${engine.sampleRateOrNull ?: "unsupported"}")
+                    appendLine("healthProbe=${engine.supportsHealthProbe}")
+                    appendLine("processedBlocks=${engine.processedBlocks ?: "unsupported"}")
+                    appendLine("peakMilliDb=${engine.peakMilliDb ?: "unsupported"}")
+                    appendLine("clipEvents=${engine.clipEvents ?: "unsupported"}")
+                    appendLine("safetyGuard=${engine.safetyGuardEnabled ?: "unsupported"}")
+                    appendLine("safetyGainMilliDb=${engine.safetyGainMilliDb ?: "unsupported"}")
+                }
+            }
+        }
+    }
+
+    fun collectCapabilityReport(): String {
+        val descriptor = runCatching {
+            AudioEffect.queryEffects().orEmpty().firstOrNull { it.uuid == effectUuid }
+        }.getOrNull()
+        val state = JamesDspRemoteEngine.isPluginInstalled()
+        val entries = runCatching {
+            MainApplication.instance.rootSessionDatabase.sessionList.values
+                .filterIsInstance<RemoteEffectSession>()
+        }.getOrDefault(emptyList())
+        val engines = entries.mapNotNull { it.effect }
+
+        val dedicated =
+            descriptor?.name?.contains("OnePlus13", ignoreCase = true) == true
+        val basicControl =
+            state == JamesDspRemoteEngine.PluginState.Available ||
+                state == JamesDspRemoteEngine.PluginState.Compatible
+
+        fun activeProbe(result: Boolean, supported: Boolean): String = when {
+            engines.isEmpty() -> "Not probed (no active session)"
+            supported && result -> "Available"
+            supported -> "Reported unhealthy"
+            else -> "Unavailable / not exposed"
+        }
+
+        val healthSupported = engines.any { it.supportsHealthProbe }
+        val healthOk = engines.isNotEmpty() &&
+            engines.filter { it.supportsHealthProbe }
+                .all { it.isPidValid && !it.isSampleRateAbnormal }
+        val telemetrySupported = engines.any { it.supportsOnePlus13Telemetry }
+        val safetySupported = engines.any { it.supportsSafetyGuard }
+
+        return buildString {
+            appendLine("Driver: ${descriptor?.name ?: "not registered"}")
+            appendLine("Implementor: ${descriptor?.implementor ?: "unknown"}")
+            appendLine("Mode: ${when {
+                dedicated -> "Dedicated OnePlus 13"
+                state == JamesDspRemoteEngine.PluginState.Compatible -> "Compatible"
+                state == JamesDspRemoteEngine.PluginState.Available -> "Standard"
+                state == JamesDspRemoteEngine.PluginState.Unsupported -> "Unsupported"
+                else -> "Unavailable"
+            }}")
+            appendLine()
+            appendLine("Core JamesDSP control: ${if (basicControl) "Available" else "Unavailable"}")
+            appendLine("PID/sample-rate health probe: ${activeProbe(healthOk, healthSupported)}")
+            appendLine(
+                "Realtime peak/process telemetry: " +
+                    if (engines.isEmpty()) "Not probed (no active session)"
+                    else if (telemetrySupported) "Available" else "Unavailable / not exposed"
+            )
+            appendLine(
+                "Adaptive Safety Guard: " +
+                    if (engines.isEmpty()) "Not probed (no active session)"
+                    else if (safetySupported) "Available" else "Unavailable / not exposed"
+            )
+            appendLine(
+                "Automatic route recovery: " +
+                    when {
+                        engines.isEmpty() -> "Not probed (no active session)"
+                        healthSupported -> "Full"
+                        basicControl -> "Limited (no health probe)"
+                        else -> "Unavailable"
+                    }
+            )
+            appendLine("Convolver sample-rate refresh: ${if (basicControl) "Available" else "Unavailable"}")
+            appendLine()
+            appendLine(
+                "Compatibility policy: non-dedicated drivers remain usable; " +
+                    "only unsupported extensions are disabled."
+            )
+        }
+    }
+
     private data class Telemetry(
         val peakMilliDb: Int?,
         val clippedSamples: Int?,

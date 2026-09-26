@@ -12,6 +12,16 @@
             android:summary="@string/oneplus13_audio_chain_status_summary"
             app:iconSpaceReserved="false" />
         <Preference
+            android:key="@string/key_oneplus13_sessions"
+            android:title="@string/oneplus13_sessions"
+            android:summary="@string/oneplus13_sessions_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/key_oneplus13_capabilities"
+            android:title="@string/oneplus13_capabilities"
+            android:summary="@string/oneplus13_capabilities_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
             android:key="@string/key_oneplus13_engine_resync"
             android:title="@string/oneplus13_engine_resync"
             android:summary="@string/oneplus13_engine_resync_summary"

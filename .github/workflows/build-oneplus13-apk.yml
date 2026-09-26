@@ -128,6 +128,15 @@ jobs:
             fi
           done
 
+          echo "== DEX dependency audit =="
+          unzip -p "$APK" 'classes*.dex' | strings > build/o13-apk/DEX_STRINGS.txt
+          if grep -Eqi 'com/google/firebase|firebase/crashlytics|FirebaseCrashlytics|CrashlyticsCore' \
+              build/o13-apk/DEX_STRINGS.txt; then
+            echo "Firebase/Crashlytics classes leaked into OnePlus13 F-Droid APK"
+            grep -Ei 'firebase|crashlytics' build/o13-apk/DEX_STRINGS.txt | head -80 || true
+            exit 1
+          fi
+
       - name: Upload controller APK
         uses: actions/upload-artifact@v4
         with:

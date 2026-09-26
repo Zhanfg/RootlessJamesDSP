@@ -35,6 +35,13 @@ jobs:
       - name: Prepare Gradle wrapper
         run: chmod +x ./gradlew
 
+      - name: Test OnePlus 13 compatibility policy
+        run: |
+          ./gradlew testRootFdroidOneplus13UnitTest \
+            -Poneplus13=true \
+            --no-daemon \
+            --stacktrace
+
       - name: Build OnePlus 13 root controller
         run: |
           ./gradlew assembleRootFdroidOneplus13             -Poneplus13=true             --no-daemon             --stacktrace

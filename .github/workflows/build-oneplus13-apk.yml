@@ -112,7 +112,7 @@ jobs:
 
           grep -q "package: name='james.dsp'" build/o13-apk/BADGING.txt
 
-          for forbidden in             android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION             android.permission.RECORD_AUDIO             android.permission.SYSTEM_ALERT_WINDOW             android.permission.REQUEST_INSTALL_PACKAGES             android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION; do
+          for forbidden in             android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION             android.permission.RECORD_AUDIO             android.permission.SYSTEM_ALERT_WINDOW             android.permission.REQUEST_INSTALL_PACKAGES             android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION             moe.shizuku.manager.permission.API_V23; do
             if grep -q "$forbidden" build/o13-apk/PERMISSIONS.txt; then
               echo "Forbidden OnePlus13 permission leaked into APK: $forbidden"
               exit 1
@@ -125,6 +125,11 @@ jobs:
               exit 1
             fi
           done
+
+          if grep -q 'firebase_crashlytics_collection_enabled' build/o13-apk/MANIFEST.txt; then
+            echo "Crashlytics collection metadata leaked into OnePlus13 APK"
+            exit 1
+          fi
 
           echo "== DEX dependency audit =="
           unzip -p "$APK" 'classes*.dex' | strings > build/o13-apk/DEX_STRINGS.txt

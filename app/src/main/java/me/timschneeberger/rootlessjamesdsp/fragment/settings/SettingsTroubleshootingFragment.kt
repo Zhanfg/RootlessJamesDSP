@@ -12,6 +12,7 @@ import androidx.preference.Preference
 import me.timschneeberger.rootlessjamesdsp.utils.extensions.ContextExtensions.sendLocalBroadcast
 import me.timschneeberger.rootlessjamesdsp.utils.RoutingObserver
 import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13Diagnostics
+import me.timschneeberger.rootlessjamesdsp.utils.OnePlus13DecoderDiagnostics
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,20 @@ class SettingsTroubleshootingFragment : SettingsBaseFragment() {
                     requireContext().showAlert(
                         getString(R.string.oneplus13_capabilities_dialog_title),
                         report
+                    )
+                }
+                true
+            }
+
+        findPreference<Preference>(getString(R.string.key_oneplus13_decoder_status))
+            ?.setOnPreferenceClickListener {
+                lifecycleScope.launch {
+                    val snapshot = withContext(Dispatchers.IO) {
+                        OnePlus13DecoderDiagnostics.collect()
+                    }
+                    requireContext().showAlert(
+                        getString(R.string.oneplus13_decoder_dialog_title),
+                        snapshot.report
                     )
                 }
                 true

@@ -43,7 +43,7 @@ object OnePlus13Diagnostics {
         val liveEngines = sessions.mapNotNull { it.effect }
 
         val sampleRates = liveEngines.mapNotNull {
-            runCatching { it.sampleRate.toInt() }.getOrNull()
+            runCatching { it.sampleRateOrNull }.getOrNull()
                 ?.takeIf { rate -> rate > 0 }
         }.distinct()
 
@@ -206,10 +206,28 @@ object OnePlus13Diagnostics {
             else -> "headroom OK"
         }
 
+        val engineState = when {
+            sessionEntries.isEmpty() -> "Idle"
+            liveEngines.any { it.supportsHealthProbe } &&
+                liveEngines.all { it.isPidValid && !it.isSampleRateAbnormal } -> "Alive"
+            compatibleMode -> "Unverified"
+            else -> "Active"
+        }
+
+        val coexistLabel = buildString {
+            append("OPlus")
+            append(if (oplusPresent) "✓" else "?")
+            append("/Dolby")
+            append(if (dolbyPresent) "✓" else "?")
+            if (spatialPresent) append("/Spatial✓")
+        }
+
         val headline = buildString {
             append(if (healthy) "Healthy" else "Needs attention")
             append(" · $driverLabel")
+            append(" · $engineState")
             append(" · $route")
+            append(" · $coexistLabel")
             if (sampleRates.isNotEmpty()) {
                 append(" · ${sampleRates.joinToString("/")} Hz")
             }
@@ -250,6 +268,8 @@ object OnePlus13Diagnostics {
             appendLine("dedicatedOnePlus13Driver=$dedicatedDriver")
             appendLine("compatibleFallback=$compatibleMode")
             appendLine("route=$route")
+            appendLine("engineState=$engineState")
+            appendLine("coexistence=$coexistLabel")
             appendLine("sessions=$sessionSummary")
             sessionEntries.forEach { (sid, session) ->
                 appendLine("session[$sid]=${session.packageName} uid=${session.uid}")

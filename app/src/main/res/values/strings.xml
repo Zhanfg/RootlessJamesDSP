@@ -727,4 +727,10 @@ Please press \'Continue\' below to re-do the setup wizard.</string>
     <string name="oneplus13_engine_resync_summary">Recreate active JamesDSP effects and immediately re-apply the complete preset.</string>
     <string name="oneplus13_engine_resync_done">JamesDSP restart/resync requested.</string>
 
+    <string name="key_oneplus13_safety_guard">oneplus13_safety_guard</string>
+    <string name="oneplus13_safety_guard">Adaptive headroom guard</string>
+    <string name="oneplus13_safety_guard_on">Protect final output from full-scale overload without changing the saved preset.</string>
+    <string name="oneplus13_safety_guard_off">Disabled. The saved DSP chain is used without the O13 runtime safety layer.</string>
+    <string name="oneplus13_safety_guard_compat">Available only when the active driver exposes the OnePlus 13 safety extension; compatible drivers continue to work normally.</string>
+
 </resources>

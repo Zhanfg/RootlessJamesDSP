@@ -1,6 +1,23 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:android="http://schemas.android.com/apk/res/android">
 
+
+    <PreferenceCategory
+        android:key="oneplus13_audio_chain_category"
+        app:title="@string/oneplus13_audio_chain_header"
+        app:iconSpaceReserved="false">
+        <Preference
+            android:key="@string/key_oneplus13_audio_chain_status"
+            android:title="@string/oneplus13_audio_chain_status"
+            android:summary="@string/oneplus13_audio_chain_status_summary"
+            app:iconSpaceReserved="false" />
+        <Preference
+            android:key="@string/key_oneplus13_engine_resync"
+            android:title="@string/oneplus13_engine_resync"
+            android:summary="@string/oneplus13_engine_resync_summary"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
     <PreferenceCategory app:title="@string/troubleshooting_docs"
         app:iconSpaceReserved="false">
         <Preference
